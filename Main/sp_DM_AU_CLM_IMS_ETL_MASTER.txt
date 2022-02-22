@@ -1,0 +1,92 @@
+USE [DM_IMS_AU_CLAIMS]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_ETL_MASTER]    Script Date: 22/02/2022 1:47:33 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER procedure [dbo].[sp_DM_AU_CLM_IMS_ETL_MASTER] (@go VARCHAR(2) = 'NO')
+as
+begin
+
+PRINT ''; PRINT getdate(); PRINT 'Entering Stored Procedure [DM_AU_CLM_IMS_ETL_MASTER]' 
+
+SET NOCOUNT OFF;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED; 
+	
+Declare @ProcError      Int = 0
+
+    BEGIN TRY
+
+--/*
+		IF not(isnull(@go,'') in ('GO'))
+		    Begin
+				PRINT ''
+				PRINT 'Invalid parameter: '+@go+'. Parameter must be GO'
+				PRINT '....but WAIT WAIT WAIT '
+				PRINT ''
+				PRINT 'IMPORTANT  IMPORTANT  IMPORTANT'
+				PRINT ''  
+				PRINT 'Have you refreshed the '
+				PRINT 'DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES table from AU BACK OFFICE [EXCEL Claims Paid & Reserves]'
+				PRINT 'and'  
+				PRINT 'DM_AU_CLM_IMS_BO_CLAIMS_COLLECTION_TRANS table from AU BACK OFFICE [EXCEL Claims Collection]'
+				PRINT ''
+				PRINT 'If YES, please rerun this job with a parameter of GO'
+				PRINT ''
+				PRINT 'If not, please refresh the DM_AU_CLM_IMS_BO_CLAIMS and DM_AU_CLM_IMS_BO_CLMTRANS tables from AU BACK OFFICE first and then rerun this job with a parameter of GO'
+				PRINT ''
+				PRINT '*** JOB STOPPED...NO DATA HAS BEEN EXTRACTED and STAGED ***'
+				SET @ProcError = 99
+				GOTO FINISH_RUN
+			End
+--*/
+
+
+PRINT getdate(); PRINT 'Blast Off'
+
+EXECUTE [DM_IMS_AU_CLAIMS].[dbo].[sp_DM_AU_CLM_IMS_CLEANUP_BO_DATA] 
+
+EXECUTE [DM_IMS_AU_CLAIMS].[dbo].[sp_DM_AU_CLM_IMS_GET_FIGTREE_CLAIMS]
+
+EXECUTE [DM_IMS_AU_CLAIMS].[dbo].[sp_DM_AU_CLM_IMS_GET_FIGTREE_CLMFINANCE]
+
+EXECUTE [DM_IMS_AU_CLAIMS].[dbo].[sp_DM_AU_CLM_IMS_GET_FIGTREE_CLMTRANS]
+
+EXECUTE [DM_IMS_AU_CLAIMS].[dbo].[sp_DM_AU_CLM_IMS_CREATE_POLICY_SHELL]
+
+EXECUTE [DM_IMS_AU_CLAIMS].[dbo].[sp_DM_AU_CLM_IMS_CREATE_BO_FT_CLAIMS]
+
+EXECUTE [DM_IMS_AU_CLAIMS].[dbo].[sp_DM_AU_CLM_IMS_Load_importAUPolicyDetails]
+
+EXECUTE [DM_IMS_AU_CLAIMS].[dbo].[sp_DM_AU_CLM_IMS_Load_importAUPolicySummary]
+
+EXECUTE [DM_IMS_AU_CLAIMS].[dbo].[sp_DM_AU_CLM_IMS_Load_Dual_FigTeeClaims]
+
+EXECUTE [DM_IMS_AU_CLAIMS].[dbo].[sp_DM_AU_CLM_IMS_Load_Dual_FigTeeClaimTransactions]
+
+EXECUTE [DM_IMS_AU_CLAIMS].[dbo].[sp_DM_AU_CLM_IMS_GET_FIGTREE_CLAIM_NOTES]
+
+--EXECUTE [DM_IMS_AU_CLAIMS].[dbo].[sp_DM_AU_CLM_IMS_Show Claims_not_Extracted]
+
+--EXECUTE [DM_IMS_AU_CLAIMS].[dbo].[sp_DM_AU_CLM_IMS_Load_Policy_Claim_Test_Data]
+
+
+PRINT ''; PRINT getdate(); PRINT ' **** JOB COMPLETED SUCCESSFULLY ****'
+
+
+FINISH_RUN:     
+
+PRINT ''; PRINT getdate(); PRINT 'Exiting Stored Procedure [DM_AU_CLM_IMS_ETL_MASTER]' 
+
+    
+	END TRY
+
+	BEGIN CATCH
+		SET @ProcError = 99
+	END CATCH	    
+	        			   
+    RETURN @ProcError;
+
+END

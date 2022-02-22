@@ -1,0 +1,184 @@
+USE [DM_IMS_AU_CLAIMS]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_Load_Dual_FigTeeClaimTransactions]    Script Date: 22/02/2022 1:51:40 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER procedure [dbo].[sp_DM_AU_CLM_IMS_Load_Dual_FigTeeClaimTransactions] (
+						@servername VARCHAR(50) = '[AUSYDIMSD01]',
+						@dbname VARCHAR(50) = '[IMS]')
+--						@dbname VARCHAR(50) = '[IMS_AU_Claim]')
+
+as
+begin
+
+
+PRINT ''; PRINT getdate(); PRINT 'Entering Stored Procedure [sp_DM_AU_CLM_IMS_Load_Dual_FigTeeClaimTransactions]' 
+-- Create Claims table which will be used to import data into IMS
+
+
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [DM_IMS_AU_CLAIMS] [Dual_ClaimTransactions_Staging] table'
+
+DELETE FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_ClaimTransactions_Staging]
+
+
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in [DM_IMS_AU_CLAIMS] [Dual_ClaimTransactions_Staging] with the non-FigTree Back Office Claim Transaction data'
+
+INSERT INTO [DM_IMS_AU_CLAIMS].[dbo].[Dual_ClaimTransactions_Staging]
+select 
+ bfc.[Claim Number]
+,bfc.[Policy Number]
+--,bfc.[RiskWrite Policy Number]						as [Policy Number]
+,bfc.[RiskWrite Policy Number]						as [RiskWrite RiskId] 
+,bfc.[FT_INCIDENT_NUMBER]							as [Incident Number]	
+,boct.[Payment Reason]								as [Payment Reason]
+,boct.[Payment request date]						as [Pay Date]
+,boct.[EXPENSE_CODE]								as [Expense Code]
+,xec.[Expense Code Description]						as [Expense Code Desc]
+--,boct.[Trans Description]
+,isnull(boct.[Claim payment - pol ccy-excl GST],0)	as [Claim Payment]
+,isnull(boct.[Fees payment - pol ccy-excl GST],0)	as [COV Payment]
+,0.00												as [DEF Payment]
+,isnull(boct.[CLAIM_GST],0)							as [Claims GST] 
+,isnull(boct.[FEES_GST],0)							as [COV GST]
+,0.00												as [DEF GST]
+,isnull(boct.[Claim payment - pol ccy-excl GST],0)	as [Claims Paid]	
+,isnull(boct.[Fees payment - pol ccy-excl GST],0)	as [Fees Paid]	
+,0.00												as [DEF Recovery]
+,0.00												as [DEF Recovery GST] 
+,0.00												as [COV Recovery]
+,0.00												as [COV Recovery GST]
+,0.00												as [SET Recovery]
+,0.00												as [SET Recovery GST] 
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+--select distinct boct.[EXPENSE_CODE], xec.[Expense Code Description], count(*)
+--select *
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_FT_CLAIMS] bfc
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_COLLECTION_TRANS] boct on bfc.[Claim Number] = boct.[Claim Number] 
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_XREF_EXP_CODE] xec on boct.[EXPENSE_CODE] = xec.[Expense Code]
+left join (select distinct [Claim Number] from [DM_IMS_AU_CLAIMS].[dbo].[Dual_ClaimTransactions_Staging]) cts on bfc.[Claim Number] = cts.[Claim Number]
+
+where 1=1
+--and fct.[FT_CLAIM_NUMBER] is NULL
+and cts.[Claim Number] is NULL
+
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in [DM_IMS_AU_CLAIMS] [Dual_ClaimTransactions_Staging] with the FigTree Claim Transaction data'
+
+INSERT INTO [DM_IMS_AU_CLAIMS].[dbo].[Dual_ClaimTransactions_Staging]
+select 
+ bfc.[Claim Number]
+,bfc.[Policy Number]
+,bfc.[RiskWrite Policy Number] as [RiskWrite RiskId] 
+,bfc.[FT_INCIDENT_NUMBER]
+,fct.[Payment Reason]
+,fct.[Transaction Date]
+,fct.[Expense Code]
+,fct.[Expense Code Description]
+--,fct.[Trans Description]
+,fct.[Claim Payment]
+,fct.[COV Payment]
+,fct.[DEF Payment]
+,fct.[Claims GST] 
+,fct.[COV GST]
+,fct.[DEF GST]
+,fct.[Claims Paid]
+,fct.[Fees Paid]
+,fct.[DEF Recovery]
+,fct.[DEF Recovery GST] 
+,fct.[COV Recovery]
+,fct.[COV Recovery GST]
+,fct.[SET Recovery]
+,fct.[SET Recovery GST] 
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_FT_CLAIMS] bfc
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLMTRANS] fct on bfc.[Claim Number] = fct.[Claim Number]
+left join (select distinct [Claim Number] from [DM_IMS_AU_CLAIMS].[dbo].[Dual_ClaimTransactions_Staging]) cts on bfc.[Claim Number] = cts.[Claim Number]
+where 1=1
+and cts.[Claim Number] is NULL
+
+
+
+
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [IMS] [Dual_FigTreeClaimTransactions_AU] table'
+
+declare @sql_del varchar(max)
+
+set @sql_del = 'DELETE from ' + @ServerName + '.'+ @DBName +'.[dbo].[Dual_FigTreeClaimTransactions_AU]'
+
+exec (@sql_del)
+
+--/*
+
+-- Create Claim Transactions table which will be used to import data into IMS
+-- Note, the table name of [IMS] [Dual_FigTreeClaimTransactions] is so that we don't have to modify the North American software which refers to this table name...the table contains data from FigTree and BackOffice
+
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in [IMS] [Dual_FigTreeClaimTransactions_AU] which will be imported into IMS'
+
+declare @sql_insert varchar(max)
+
+set @sql_insert = '
+INSERT INTO ' + @ServerName + '.'+ @DBName +'.[dbo].[Dual_FigTreeClaimTransactions_AU]
+select 
+ [Claim Number]
+,[Policy Number]
+,[RiskWrite RiskId] 
+,[Incident Number]
+,[Payment Reason]
+,[Pay Date]
+,[Expense Code]
+,[Expense Code Desc]
+--,[Trans Description]
+,[Claim Payment]
+,[COV Payment]
+,[DEF Payment]
+,[Claims GST] 
+,[COV GST]
+,[DEF GST]
+,[Claims Paid]
+,[Fees Paid]
+,[DEF Recovery]
+,[DEF Recovery GST] 
+,[COV Recovery]
+,[COV Recovery GST]
+,[SET Recovery]
+,[SET Recovery GST] 
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+from [DM_IMS_AU_CLAIMS].[dbo].[Dual_ClaimTransactions_Staging]'
+
+exec (@sql_insert)
+
+--*/
+
+
+PRINT ''; PRINT getdate(); PRINT 'Exiting Stored Procedure [sp_DM_AU_CLM_IMS_Load_Dual_FigTeeClaimTransactions]' 
+
+
+END
+
+

@@ -1,0 +1,502 @@
+USE [DM_IMS_AU_CLAIMS]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_GET_FIGTREE_CLMFINANCE]    Script Date: 22/02/2022 1:49:54 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER procedure [dbo].[sp_DM_AU_CLM_IMS_GET_FIGTREE_CLMFINANCE]
+as
+begin
+
+PRINT ''; PRINT getdate(); PRINT 'Entering Stored Procedure [DM_AU_CLM_IMS_ETL_FIGTREE_CLMFINANCE]' 
+
+--Capture FIGTREE Finance Data
+
+PRINT ''; PRINT getdate(); PRINT 'Capture FIGTREE Recovery Data into temp table'
+
+
+declare		@RecoveryData					table
+
+				(
+					ClaimNumber				varchar(7),
+					IncidentNumber			varchar(50),
+					RecoveryType			varchar(5),
+					Amount					money,
+					GST						money
+				)
+
+insert into @RecoveryData
+
+
+select	[Claim Number],
+		[Incident Number],
+		[Recovery Type],
+		Sum(Amount)							as 'Amount',
+		Sum(GST)							as 'GST'
+
+From	OPENQUERY([FIGDB], 'SELECT			left(GCF020.F_SPARE_CHAR_7,7) as ''Claim Number'',
+											GCF020.F_INCIDENT_NUMBER AS ''Incident Number'',
+											CASE	WHEN GCF040.F_EXPENSE_CODE in (''G09'', ''G10'') THEN ''DEF''
+													WHEN GCF040.F_EXPENSE_CODE in (''C02'', ''G01'', ''RR7'', ''G04'', ''G06'') THEN ''SET'' 
+													ELSE ''???''
+														END as ''Recovery Type'',
+											GCF040.F_AMOUNT_1		AS ''Amount'',
+											GCF040.F_AMOUNT_2		AS ''GST''
+
+								  FROM PUB.GCF020 GCF020
+								  inner join PUB.GCF040 GCF040
+								  on GCF040.F_INCIDENT_NUMBER = GCF020.F_INCIDENT_NUMBER
+
+								  WHERE GCF020.f_org_code like ''AUS%''
+								  and GCF020.F_MODULE_CODE = ''G2''
+								  and GCF040.F_TRANSACTION_TYPE = ''R''
+
+							-- Some rubbish Claims we dont want
+								  and not(GCF020.F_INCIDENT_NUMBER in (''2010C0015578'',''2014C0005529'',''2018C0012363'',''2004C0012781'',''2022C0020884'',''2022C0020973'',''2022C0021051'',''2022C0021184''))
+
+								  order by GCF020.F_SPARE_CHAR_7
+								  '
+								  )
+Where len([Claim Number]) = 7
+Group by [Claim Number],
+		 [Incident Number],
+		 [Recovery Type]
+
+----
+--select *
+--from @RecoveryData rd
+--order by ClaimNumber
+----
+
+UNION -- Capturing Input Tax Credit Payments as these are also recoveries
+
+select	[Claim Number],
+		[Incident Number],
+		[Recovery Type],
+		Sum(Amount)							as 'Amount',
+		Sum(GST)							as 'GST'
+
+From	OPENQUERY([FIGDB], 'SELECT			left(GCF020.F_SPARE_CHAR_7,7) as ''Claim Number'',
+											GCF020.F_INCIDENT_NUMBER AS ''Incident Number'',
+											''SET'' as ''Recovery Type'',
+											GCF040.F_AMOUNT_1		AS ''Amount'',
+											GCF040.F_AMOUNT_2		AS ''GST''
+
+								  FROM PUB.GCF020 GCF020
+								  inner join PUB.GCF040 GCF040
+								  on GCF040.F_INCIDENT_NUMBER = GCF020.F_INCIDENT_NUMBER
+
+								  where GCF020.f_org_code like ''AUS%''
+								  and GCF020.F_MODULE_CODE = ''G2''
+								  and F_EXPENSE_CODE = ''IT-''
+								  and GCF040.F_TRANSACTION_TYPE = ''P''
+
+							-- Some rubbish Claims we dont want
+								  and not(GCF020.F_INCIDENT_NUMBER in (''2010C0015578'',''2014C0005529'',''2018C0012363'',''2004C0012781'',''2022C0020884'',''2022C0020973'',''2022C0021051'',''2022C0021184''))
+
+								  order by GCF020.F_SPARE_CHAR_7
+								  '
+								  )
+Where len([Claim Number]) = 7
+Group by [Claim Number],
+		 [Incident Number],
+		 [Recovery Type]
+
+order by [Claim Number]
+
+----
+--select * from @RecoveryData rd order by ClaimNumber
+----
+
+----
+--select *
+--from @RecoveryData rd
+--order by ClaimNumber, IncidentNumber, RecoveryType
+----
+PRINT ''; PRINT getdate(); PRINT 'Drop and Create DM_AU_CLM_IMS_FIGTREE_CLMFINANCE table'
+
+IF OBJECT_ID('[DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLMFINANCE]', 'U') IS NOT NULL
+                DROP TABLE [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLMFINANCE]
+
+PRINT ''; PRINT getdate(); PRINT 'Populate DM_AU_CLM_IMS_FIGTREE_CLMFINANCE table from PROD FigTree database'
+--Don't forget to set the Figtree Claims module to either 'GI' or 'G2'
+
+
+CREATE TABLE [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLMFINANCE](
+	[FT_CLAIM_NUMBER] [varchar](255) NULL,
+	[FT_INCIDENT_NUMBER] [varchar](255) NOT NULL,
+	[Amount Claimed] [money] NULL,
+	[Claim Reserve Amount] [money] NOT NULL,
+	[Fee Reserve Amount] [money] NOT NULL,
+	[Claim Payment - pol ccy-excl GST] [money] NOT NULL,
+	[Fees Payment - pol ccy-excl GST] [money] NOT NULL,
+	[COV Paid] [money] NOT NULL,
+	[COV Reserve] [money] NOT NULL,
+	[DEF Paid] [money] NOT NULL,
+	[DEF Reserve] [money] NOT NULL,
+	[Claim_GST] [money] NOT NULL,
+	[COV GST] [money] NOT NULL,
+	[DEF GST] [money] NOT NULL,
+	[Claims Paid] [money] NOT NULL,
+	[Fees Paid] [money] NULL,
+	[Fees GST] [money] NULL,
+	[Claim GST] [money] NOT NULL,
+	[Total GST] [money] NULL,
+	[DEF Recovery] [money] NOT NULL,
+	[DEF Recovery GST] [money] NOT NULL,
+	[COV Recovery] [money] NOT NULL,
+	[COV Recovery GST] [money] NOT NULL,
+	[SET Recovery] [money] NOT NULL,
+	[SET Recovery GST] [money] NOT NULL,
+	[Recovery Estimate] [money] NOT NULL
+
+) ON [PRIMARY]
+
+PRINT ''; PRINT getdate(); PRINT 'Populate DM_AU_CLM_IMS_FIGTREE_CLMFINANCE table'
+
+INSERT INTO [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLMFINANCE] 
+
+select	ClaimNumbers.[Claim Number],
+		ClaimNumbers.[Incident Number],
+		ClaimNumbers.[Amount Claimed]																							as 'Amount Claimed', --aka Total Incurred
+		IsNull(ClaimReserves.[Claim Reserve Amount], 0)																			as 'Claim Reserve Amount',
+		IsNull(FeeReserves.[Fee Reserve Amount], 0)																				as 'Fee Reserve Amount',
+		IsNull(LossPaidandGST.[Total Payments], 0)																				as 'Claim Payment - pol ccy-excl GST',
+
+--		IsNull(COVPaidandGST.[COV Paid], 0) + IsNull(DEFPaidandGST.[DEF Paid], 0) - IsNull(RecovToDate.[Recov to Date], 0)		as 'Fees Payment - pol ccy-excl GST',
+		IsNull(COVPaidandGST.[COV Paid], 0) + IsNull(DEFPaidandGST.[DEF Paid], 0)												as 'Fees Payment - pol ccy-excl GST',
+
+		IsNull(COVPaidandGST.[COV Paid], 0)																						as 'COV Paid',
+		IsNull(COVOutstanding.Amount, 0)																						as 'COV Reserve',
+		IsNull(DEFPaidandGST.[DEF Paid], 0)																						as 'DEF Paid',
+		IsNull(DEFOutstanding.Amount, 0)																						as 'DEF Reserve',
+		IsNull(LossPaidandGST.[LOSS GST],0)																						as 'Claim_GST',
+		IsNull(COVPaidandGST.[COV GST], 0)																						as 'COV GST',
+		IsNull(DEFPaidandGST.[DEF GST], 0)																						as 'DEF GST',
+		IsNull(LossPaidandGST.[Total Payments], 0)																				as 'Claims Paid',
+
+--		IsNull(COVPaidandGST.[COV Paid], 0) + IsNull(DEFPaidandGST.[DEF Paid], 0) - IsNull(RecovToDate.[Recov to Date], 0)		as 'Fees Paid',
+		IsNull(COVPaidandGST.[COV Paid], 0) + IsNull(DEFPaidandGST.[DEF Paid], 0)												as 'Fees Paid',
+
+		IsNull(COVPaidandGST.[COV GST], 0) + IsNull(DEFPaidandGST.[DEF GST], 0)													as 'Fees GST',
+		IsNull(LossPaidandGST.[LOSS GST],0)																						as 'Claim GST',
+		IsNull(COVPaidandGST.[COV GST], 0) + IsNull(DEFPaidandGST.[DEF GST], 0) + IsNull(LossPaidandGST.[LOSS GST],0)			as 'Total GST',
+		IsNull(DEFRecov.[DEF Recovery], 0)																						as 'DEF Recovery',
+		IsNull(DEFRecov.[DEF Recovery GST], 0)																					as 'DEF Recovery GST',
+		IsNull(COVRecov.[COV Recovery], 0)																						as 'COV Recovery',
+		IsNull(COVRecov.[COV Recovery GST], 0)																					as 'COV Recovery GST',
+		IsNull(SETRecov.[SET Recovery], 0)																						as 'SET Recovery',
+		IsNull(SETRecov.[SET Recovery GST], 0)																					as 'SET Recovery GST',
+		IsnUll(ClaimNumbers.[Recovery Estimate]	,0)																				as 'Recovery Estimate'
+from 
+(
+select	[Claim Number],
+		[Incident Number],
+		[Amount Claimed],
+		[Recovery Estimate]
+From	OPENQUERY([FIGDB], 'SELECT DISTINCT	left(GCF020.F_SPARE_CHAR_7,7) as ''Claim Number'',
+											GCF020.F_INCIDENT_NUMBER AS ''Incident Number'',
+											GCF020.F_SPARE_CHAR_7 + ''_'' + GCF020.F_INCIDENT_NUMBER + ''_'' + GCF020.F_SPARE_CHAR_2 as ''Key'',
+											GCF020.F_PAID_LTD + GCF020.F_ESTIMATE_YOURS - GCF020.F_RECOVERED_LTD as ''Amount Claimed'',
+											GCF020.F_RECOVERY_ESTIMATE_YOURS as ''Recovery Estimate''
+								  FROM PUB.GCF020 GCF020
+								  WHERE GCF020.f_org_code like ''AUS%''
+								  and GCF020.F_MODULE_CODE = ''G2''
+
+								 -- Some rubbish Claims we dont want
+								  and not(GCF020.F_INCIDENT_NUMBER in (''2010C0015578'',''2014C0005529'',''2018C0012363'',''2004C0012781'',''2022C0020884'',''2022C0020973'',''2022C0021051'',''2022C0021184''))
+
+								  '
+								  )
+
+) ClaimNumbers
+
+
+Left outer join
+
+(
+
+select	[Incident Number],
+		[Summary Type],
+		sum([Claim Reserve Amount]) as [Claim Reserve Amount]
+From	OPENQUERY([FIGDB], 'SELECT Distinct	GCF030.F_INCIDENT_NUMBER as ''Incident Number'',
+											GCF030.F_SUMMARY_TYPE as ''Summary Type'',
+											GCF030.F_AMOUNT_YEAR	 as ''Claim Reserve Amount''
+							FROM			PUB.GCF040 GCF040
+							LEFT OUTER JOIN	PUB.GCF030 GCF030
+							on				GCF030.F_INCIDENT_NUMBER = GCF040.F_INCIDENT_NUMBER
+							WHERE			GCF030.F_SUMMARY_TYPE = ''E''
+							AND				GCF030.F_MODULE_CODE = ''G2''
+							AND				GCF030.F_SUMMARY_CATEGORY_CODE IN (''E01'',''E02'')
+							'
+							)
+group by 
+[Incident Number],
+[Summary Type]
+
+) ClaimReserves
+
+on		ClaimReserves.[Incident Number] = ClaimNumbers.[Incident Number]
+
+Left outer join
+
+(
+
+select  COVandDEFOutstanding.[Incident Number],
+		sum(Amount) as 'Fee Reserve Amount'
+from
+		
+(		
+select	[Incident Number],
+		[Summary Type],
+		sum(Amount)	as 'Amount'
+From	OPENQUERY([FIGDB], 'SELECT Distinct	GCF030.F_INCIDENT_NUMBER as ''Incident Number'',
+											GCF030.F_SUMMARY_TYPE as ''Summary Type'',
+											GCF030.F_AMOUNT_YEAR	 as ''Amount''
+							FROM			PUB.GCF040 GCF040
+							LEFT OUTER JOIN PUB.GCF030 GCF030
+							on				GCF030.F_INCIDENT_NUMBER = GCF040.F_INCIDENT_NUMBER
+							WHERE			GCF030.F_SUMMARY_TYPE = ''E''
+							AND				GCF030.F_MODULE_CODE = ''G2''
+							AND				GCF030.F_SUMMARY_CATEGORY_CODE in (''IF'',''E04'',''E05'',''E06'',''E15'',''E16'',''E17'',''E18'',
+																				''E19'',''E20'',''E21'',''E22'',''E23'',''E24'',''E25'',''NZA'') 
+							')
+
+group by [Incident Number],
+		[Summary Type]
+
+UNION ALL
+
+select	[Incident Number],
+		[Summary Type],
+		sum(Amount)	as 'Amount'
+From	OPENQUERY([FIGDB], 'SELECT Distinct	GCF030.F_INCIDENT_NUMBER as ''Incident Number'',
+											GCF030.F_SUMMARY_TYPE as ''Summary Type'',
+											GCF030.F_AMOUNT_YEAR	 as ''Amount''
+							FROM			PUB.GCF040 GCF040
+							LEFT OUTER JOIN PUB.GCF030 GCF030
+							on				GCF030.F_INCIDENT_NUMBER = GCF040.F_INCIDENT_NUMBER
+							WHERE			GCF030.F_SUMMARY_TYPE = ''E''
+							AND				GCF030.F_MODULE_CODE = ''G2''
+							AND				GCF030.F_SUMMARY_CATEGORY_CODE in (''E03'',''E07'',''E08'',''E09'',''E11'',''E14'',''NZE'')
+							')
+
+group by [Incident Number],
+		[Summary Type]
+
+
+) COVandDEFOutstanding
+
+group by COVandDEFOutstanding.[Incident Number]
+
+
+) FeeReserves
+
+on		FeeReserves.[Incident Number] = ClaimNumbers.[Incident Number]
+
+left outer join 
+
+(
+
+select	[Incident Number],
+		[Summary Type],
+		sum(Amount)	as 'Amount'
+From	OPENQUERY([FIGDB], 'SELECT Distinct	GCF030.F_INCIDENT_NUMBER as ''Incident Number'',
+											GCF030.F_SUMMARY_TYPE as ''Summary Type'',
+											GCF030.F_AMOUNT_YEAR	 as ''Amount''
+							FROM			PUB.GCF030 GCF030
+							WHERE			GCF030.F_SUMMARY_TYPE = ''E''
+							AND				GCF030.F_MODULE_CODE = ''G2''
+							AND				GCF030.F_SUMMARY_CATEGORY_CODE in (''IF'',''E04'',''E05'',''E06'',''E15'',''E16'',''E17'',''E18'',
+																				''E19'',''E20'',''E21'',''E22'',''E23'',''E24'',''E25'',''NZA'') 
+				')
+
+group by [Incident Number],
+		[Summary Type]
+) COVOutstanding
+
+on		COVOutstanding.[Incident Number] = ClaimNumbers.[Incident Number]
+
+left outer join 
+
+(
+
+select	[Incident Number],
+		[Summary Type],
+		sum(Amount)	as 'Amount'
+From	OPENQUERY([FIGDB], 'SELECT Distinct	GCF030.F_INCIDENT_NUMBER as ''Incident Number'',
+											GCF030.F_SUMMARY_TYPE as ''Summary Type'',
+											GCF030.F_AMOUNT_YEAR	 as ''Amount''
+							FROM			PUB.GCF030 GCF030
+							WHERE			GCF030.F_SUMMARY_TYPE = ''E''
+							AND				GCF030.F_MODULE_CODE = ''G2''
+							AND				GCF030.F_SUMMARY_CATEGORY_CODE in (''E03'',''E07'',''E08'',''E09'',''E11'',''E14'',''NZE'')
+				')
+
+group by [Incident Number],
+		[Summary Type]
+) DEFOutstanding
+
+on		DEFOutstanding.[Incident Number] = ClaimNumbers.[Incident Number]
+
+left outer join
+
+(
+select	[Incident Number],
+		[Total Payments],
+		[LOSS GST]
+From OPENQUERY([FIGDB], 'SELECT GCF040.F_INCIDENT_NUMBER AS ''Incident Number'',
+								SUM(cast(GCF040.F_AMOUNT_1 as float)) as ''Total Payments'',
+								SUM(cast(GCF040.F_AMOUNT_2 as float)) as ''LOSS GST''
+						 FROM PUB.GCF040 GCF040
+						 WHERE GCF040.F_TRANSACTION_TYPE = ''P''
+						 AND GCF040.F_MODULE_CODE = ''G2''
+						 AND GCF040.F_EXPENSE_CODE in (''D00'', ''NZT'', ''T00'', ''U20'', ''U21'', ''U22'', ''U23'', ''U24'', ''U25'', ''U26'')
+						 Group By GCF040.F_INCIDENT_NUMBER')
+
+) LossPaidandGST
+
+on	LossPaidandGST.[Incident Number] = ClaimNumbers.[Incident Number]
+
+left outer join
+
+
+(
+select	[Incident Number],
+		Cast(Round([COV Paid], 2) as money) as 'COV Paid',
+		Cast(Round([COV GST], 2) as money) as 'COV GST'
+From OPENQUERY([FIGDB], 'SELECT GCF040.F_INCIDENT_NUMBER AS ''Incident Number'',
+								SUM(cast(GCF040.F_AMOUNT_1 as float)) as ''COV Paid'',
+								SUM(cast(GCF040.F_AMOUNT_2 as float)) as ''COV GST''
+						 FROM PUB.GCF040 GCF040
+						 WHERE GCF040.F_TRANSACTION_TYPE = ''P''
+						 AND GCF040.F_MODULE_CODE = ''G2''
+						 AND GCF040.F_EXPENSE_CODE in (''IF'',''NZA'',''NZE'',''NZI'',''U06'',''U07'',''U12'',''U16'',''U17'',''U18'',''U19'')
+						 Group By GCF040.F_INCIDENT_NUMBER
+						 Having SUM(cast(GCF040.F_AMOUNT_1 as float)) <> 0')
+
+) COVPaidandGST
+
+on	COVPaidandGST.[Incident Number] = ClaimNumbers.[Incident Number]
+
+left outer join
+
+
+(
+select	[Incident Number],
+		Cast(Round([DEF Paid], 2) as money) as 'DEF Paid',
+		Cast(Round([DEF GST], 2) as money) as 'DEF GST'
+From OPENQUERY([FIGDB], 'SELECT GCF040.F_INCIDENT_NUMBER AS ''Incident Number'',
+								SUM(cast(GCF040.F_AMOUNT_1 as float)) as ''DEF Paid'',
+								SUM(cast(GCF040.F_AMOUNT_2 as float)) as ''DEF GST''
+						 FROM PUB.GCF040 GCF040
+						 WHERE GCF040.F_TRANSACTION_TYPE = ''P''
+						 AND GCF040.F_MODULE_CODE = ''G2''
+						 AND GCF040.F_EXPENSE_CODE in (''E14'',''NZ'',''NZC'',''NZL'',''U00'',''U01'',''U03'',''U08'',''U13'',''U15'',''U27'')
+						 Group By GCF040.F_INCIDENT_NUMBER
+						 Having SUM(cast(GCF040.F_AMOUNT_1 as float)) <> 0')
+
+) DEFPaidandGST
+
+on	DEFPaidandGST.[Incident Number] = ClaimNumbers.[Incident Number]
+
+
+Left outer join
+
+
+(
+	select		rd.ClaimNumber			as 'Claim Number',
+				rd.IncidentNumber		as 'Incident Number',
+				sum(rd.Amount)			as 'Recov to Date'
+	from		@RecoveryData			rd
+	group by	rd.ClaimNumber,
+				rd.IncidentNumber
+
+) RecovToDate
+
+on		RecovToDate.[Incident Number] = ClaimNumbers.[Incident Number]
+and		RecovToDate.[Claim Number] = ClaimNumbers.[Claim Number]
+
+
+left outer join 
+
+(
+	select		rd.ClaimNumber			as 'Claim Number',
+				rd.IncidentNumber		as 'Incident Number',
+				sum(rd.Amount)			as 'DEF Recovery',
+				sum(rd.GST)				as 'DEF Recovery GST'
+	from		@RecoveryData			rd
+	where		rd.RecoveryType			= 'DEF'
+	group by	rd.ClaimNumber,
+				rd.IncidentNumber
+) DEFRecov
+
+on 				DEFRecov.[Claim Number] = ClaimNumbers.[Claim Number]	  
+and				DEFRecov.[Incident Number] = ClaimNumbers.[Incident Number]
+
+left outer join 
+
+(
+	select		rd.ClaimNumber			as 'Claim Number',
+				rd.IncidentNumber		as 'Incident Number',
+				sum(rd.Amount)			as 'COV Recovery',
+				sum(rd.GST)				as 'COV Recovery GST'
+	from		@RecoveryData			rd
+	where		rd.RecoveryType			= 'COV'
+	group by	rd.ClaimNumber,
+				rd.IncidentNumber
+) COVRecov
+
+on 				COVRecov.[Claim Number] = ClaimNumbers.[Claim Number]	  
+and 			COVRecov.[Incident Number] = ClaimNumbers.[Incident Number]
+
+left outer join 
+
+(
+	select		rd.ClaimNumber			as 'Claim Number',
+				rd.IncidentNumber		as 'Incident Number',
+				sum(rd.Amount)			as 'SET Recovery',
+				sum(rd.GST)				as 'SET Recovery GST'
+	from		@RecoveryData			rd
+	where		rd.RecoveryType			= 'SET'
+	group by	rd.ClaimNumber,
+				rd.IncidentNumber
+) SETRecov
+
+on 				SETRecov.[Claim Number] = ClaimNumbers.[Claim Number]	  
+and 			SETRecov.[Incident Number] = ClaimNumbers.[Incident Number]
+
+
+
+
+/*
+
+								  --AND LEFT(GCF020.F_SPARE_CHAR_7, 7) in (''DI73018'', ''DI75482'', ''DI73577'', ''DI73703'', ''DI74798'',
+										--									''DI71582'', ''DI75033'', ''DI75399'', ''DI75026'', ''DI74790'',
+										--										''DI74469'', ''DI75238'', ''DI74658'', ''DI70161'', ''DI73733'',
+										--											''DI73791'', ''DI74485'', ''DI73945'', ''DI74316'', ''DI73912'')
+
+*/
+
+
+PRINT ''; PRINT getdate(); PRINT 'Delete duplicate Claim records (Lowest Incident Number) from DM_AU_CLM_IMS_FIGTREE_CLMFINANCE table which were from a Figtree bug years ago'
+
+delete d
+--select d.* 
+from
+(select [FT_CLAIM_NUMBER], COUNT(*) as rec_count
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLMFINANCE]
+group by [FT_CLAIM_NUMBER]
+having COUNT(*) > 1) a
+inner join (select [FT_CLAIM_NUMBER], min([FT_INCIDENT_NUMBER]) FT_INCIDENT_NUMBER from [DM_AU_CLM_IMS_FIGTREE_CLMFINANCE] group by [FT_CLAIM_NUMBER]) c on a.[FT_CLAIM_NUMBER] = c.[FT_CLAIM_NUMBER]
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLMFINANCE] d on a.[FT_CLAIM_NUMBER] = d.[FT_CLAIM_NUMBER] and c.[FT_INCIDENT_NUMBER] = d.[FT_INCIDENT_NUMBER]
+
+
+
+PRINT ''; PRINT getdate(); PRINT 'Exiting Stored Procedure [DM_AU_CLM_IMS_ETL_FIGTREE_CLMFINANCE]' 
+
+
+END
+-- Create FIGTREE table

@@ -1,0 +1,580 @@
+USE [DM_IMS_AU_CLAIMS]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_CREATE_BO_FT_CLAIMS]    Script Date: 8/02/2022 3:25:16 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER procedure [dbo].[sp_DM_AU_CLM_IMS_CREATE_BO_FT_CLAIMS]
+as
+begin
+
+PRINT ''; PRINT getdate(); PRINT 'Entering Stored Procedure [DM_AU_CLM_IMS_ETL_BO_FT_CLAIMS]' 
+-- Create Combined BO and FIGTREE table
+
+PRINT ''; PRINT getdate(); PRINT 'Drop combined DM_AU_CLM_IMS_BO_FT_CLAIMS table from B0 and FigTree data'
+
+IF OBJECT_ID('[DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_FT_CLAIMS]', 'U') IS NOT NULL
+                DROP TABLE [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_FT_CLAIMS]
+
+PRINT ''; PRINT getdate(); PRINT 'Create combined DM_AU_CLM_IMS_BO_FT_CLAIMS table from B0 and FigTree data'
+
+CREATE TABLE [dbo].[DM_AU_CLM_IMS_BO_FT_CLAIMS](
+	[BACKOFFICE DATA] [varchar](15) NULL,
+	[BO Claim Number] [nvarchar](255) NULL,
+	[Claim Number] [nvarchar](255) NULL,
+	[BO FTClaimNumber] [nvarchar](255) NULL,
+	[Policy Number] [nvarchar](255) NULL,
+	[BO Trimmed Policy Number] [nvarchar](255) NULL,
+	[RiskWrite Policy Number] [nvarchar](255) NULL,
+	[WebRater Policy Number] [varchar](255) NULL,
+	[Year Letter] [nvarchar](10) NULL,
+	[Claimant] [nvarchar](max) NULL,
+	[Contract] [nvarchar](255) NULL,
+	[Payee] [varchar](255) NULL,
+	[Status] [nvarchar](50) NULL,
+	[Type] [nvarchar](255) NULL,
+	[Claim Summary] [nvarchar](max) NULL,
+	[Claim Code] [nvarchar](255) NULL,
+	[Notes] [nvarchar](max) NULL,
+	[Claim Handler] [nvarchar](255) NULL,
+	[EML] [float] NULL,
+	[Date of Loss] [datetime] NULL,
+	[Date Claim Notified] [datetime] NULL,
+	[Date Claim Opened] [datetime] NULL,
+	[Date Claim Closed] [datetime] NULL,
+	[Capacity Provider Referral] [varchar](255) NULL,
+	[Amount Claimed] [numeric](18, 2) NULL,
+	[Claim Reserve] [numeric](18, 2) NULL,
+	[Fee Reserve] [numeric](18, 2) NULL,
+	[Claim GST] [numeric](18, 2) NULL,
+	[Fees GST] [numeric](18, 2) NULL,
+	[Claims Paid] [numeric](18, 2) NULL,
+	[Fees Paid] [numeric](18, 2) NULL,
+	[Denied Indemnity] [nvarchar](255) NULL,
+	[Currency] [nvarchar](255) NULL,
+	[Activity Code] [nvarchar](255) NULL,
+	[Total GST] [numeric](18, 2) NULL,
+	[Excess] [numeric](18, 0) NULL,
+	[Broker Name] [nvarchar](max) NULL,
+	[Broker email address] [nvarchar](255) NULL,
+	[Scheme] [nvarchar](255) NULL,
+	[UMR] [nvarchar](255) NULL,
+	[Product] [nvarchar](255) NULL,
+	[ClaimsCount] [int] NULL,
+	[Claim Payment - pol ccy-excl GST] [numeric](18, 2) NULL,
+	[Fees Payment - pol ccy-excl GST] [numeric](18, 2) NULL,
+	[Total Incurred] [numeric](18, 2) NULL,
+	[Date/Reminder_T/Actioned] [varchar](255) NULL,
+	[COVPaid] [numeric](18, 2) NULL,
+	[COVReserve] [numeric](18, 2) NULL,
+	[COVGST] [numeric](18, 2) NULL,
+	[DEFPaid] [numeric](18, 2) NULL,
+	[DEFReserve] [numeric](18, 2) NULL,
+	[DEFGST] [numeric](18, 2) NULL,
+	[DEFRecovery] [numeric](18, 2) NULL,
+	[DEFRecoveryGST] [numeric](18, 2) NULL,
+	[COVRecovery] [numeric](18, 2) NULL,
+	[COVRecoveryGST] [numeric](18, 2) NULL,
+	[SETRecovery] [numeric](18, 2) NULL,
+	[SETRecoveryGST] [numeric](18, 2) NULL,
+	[FIGTREE DATA] [varchar](255) NULL,
+	[FT_ORG_CODE] [varchar](255) NULL,
+	[FT_MODULE_CODE] [varchar](6) NULL,
+	[FT_INCIDENT_NUMBER] [varchar](255) NULL,
+	[FT_CLAIM_STATUS] [varchar](255) NULL,
+	[FT_POLICY_NUMBER] [varchar](255) NULL,
+	[FT_PIVOTAL_POLICY] [varchar](255) NULL,
+	[FT_TYPE] [varchar](255) NULL,
+	[FT_INSURED_NAME] [varchar](max) NULL,
+	[FT_CLAIM_CODE] [varchar](255) NULL,
+	[FT_CLAIM_NUMBER] [varchar](255) NULL,
+	[FT_PRODUCT_CODE] [varchar](255) NULL,
+	[FT_TP_CLAIMANT] [varchar](max) NULL,
+	[FT_PAYEE] [varchar](max) NULL,
+	[FT_CLAIM_DESCRIPTION] [varchar](max) NULL,
+	[FT_CLAIM_OFFICER] [varchar](255) NULL,
+	[FT_EML] [numeric](17, 6) NULL,
+	[FT_EXCESS] [numeric](21, 6) NULL,
+	[FT_SCHEME] [varchar](255) NULL,
+	[FT_UMR] [varchar](255) NULL,
+	[FT_CAPACITY_PROVIDER_REFERRAL] [varchar](max) NULL,
+	[FT_DEFENCE] [varchar](255) NULL,
+	[FT_PANEL_APPOINTED] [date] NULL,
+	[FT_APPOINTED_FOR] [varchar](255) NULL,
+	[FT_REASON_FOR_PANEL] [varchar](255) NULL,
+	[FT_COVERAGE] [varchar](255) NULL,
+	[FT_DATE_APPOINTED] [date] NULL,
+	[FT_ASSESSOR] [varchar](255) NULL,
+	[FT_COVERAGE_INDEMNITY_POSITION] [varchar](255) NULL,
+	[FT_WATCH_LIST_FLAG] [bit] NULL,
+	[FT_DATE_OF_LOSS] [date] NULL,
+	[FT_NOTIFICATION_DATE] [date] NULL,
+	[FT_FINALISATION_DATE] [date] NULL,
+	[FT_REOPENED_DATE] [date] NULL,
+	[FT_OPENED_DATE] [date] NULL,
+	[FT_CLAIM_PAID] [numeric](18, 2) NULL,
+	[FT_OS_RESERVE] [numeric](18, 2) NULL,
+	[FT_CLAIM_RECOVERED] [numeric](18, 2) NULL,
+	[FT_TOTAL_INCURRED] [numeric](18, 2) NULL,
+	[FT_REASON_FOR_DECLINATURE] [varchar](max) NULL,
+	[FT_CLIENT] [char](4) NULL,
+	[Reference] [varchar](255) NULL,
+	[CLMDataSource] [varchar](255) NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+
+
+PRINT ''; PRINT getdate(); PRINT 'Populate combined DM_AU_CLM_IMS_BO_FT_CLAIMS table from B0 and FigTree data'
+
+--select z.* INTO [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_FT_CLAIMS] from 
+--(
+
+INSERT INTO [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_FT_CLAIMS]
+select 
+'BACKOFFICE DATA'							as [BACKOFFICE DATA],
+t3.[CLAIM_NUMB]								as [BO Claim Number],
+t3.[FULL_CLAIM_NUMB]						as [Claim Number],
+--bcapr.[Claim Number]						as [Claim Number],
+isnull(bcapr.[FTClmNumber],'')				as [BO FTClaimNumber],
+--isnull(fc.[INCIDENT_NUMBER],'')			as [FT Incident Number],
+ps.[PolicyNumber]							as [Policy Number],
+--isnull(fc.[POLICY_NUMBER],'')				as [FT Policy Number],
+ps.[RiskWrite Riskid]						as [BO Trimmed Policy Number],
+ps.[RiskWrite Riskid]						as [RiskWrite Policy Number],
+isnull(fc.[FT_POLICY_NUMBER],'')			as [WebRater Policy Number],
+t3.[Year Letter]							as [Year Letter],
+isnull(bcapr.[CLAIMANT],'')					as [Claimant],
+bcapr.[Contract]							as [Contract],
+'Payee'										as [Payee],
+bcapr.[STATUS]								as [Status],
+bcapr.[TYPE]								as [Type],
+coalesce(bcapr.[Description], bdc.[CLAIMS_SUM])	as [Claim Summary],
+coalesce(bcapr.[Claim Code], bdc.[CLAIM_CODE]) 	as [Claim Code],
+isnull(bdc.[CLAIM_NOTE],'')					as [Notes],
+coalesce(bcapr.[ClaimOfficer], bdc.[CLAIMOFFIC])as [Claim Handler],
+coalesce(bcapr.[EML], bdc.[EML], 0)			as [EML],
+coalesce(bcapr.[Date of Loss], bcapr.[Date DUAL Notified])	as [Date of Loss],
+bcapr.[Date DUAL Notified]					as [Date Claim Notified],
+coalesce(bcapr.[INPUT_DATE],dateadd(dd, 7, bcapr.[Date DUAL Notified])) as [Date Claim Opened],
+bcapr.[Closure date]						as [Date Claim Closed],
+--cae.[F_REOPENED_DATE]						as [Date Claim Reopened],
+'no'										as [Capacity Provider Referral],
+
+coalesce(bcapr.[Total Incurred],(isnull(bdc.[CURRENT_CL],0)+isnull(bdc.[CURRENT_FE],0)+isnull(bdc.[CLAIMS_PAI],0)+isnull(bdc.[FEES_PAID],0)))
+											as [Amount Claimed],
+
+coalesce(bcapr.[Claim Reserve],bdc.[CURRENT_CL],0)	as [Claim Reserve],
+coalesce(bcapr.[Fees Reserve],bdc.[CURRENT_FE],0)	as [Fee Reserve],
+isnull(bcapr.[Claim GST],0)					as [Claim GST],
+isnull(bcapr.[Fees GST],0)					as [Fees GST],
+coalesce(bcapr.[Claims Paid],bdc.[CLAIMS_PAI],0) as [Claims Paid],
+coalesce(bcapr.[Fees Paid],bdc.[FEES_PAID],0)	as [Fees Paid],
+isnull(bcapr.[DENIED_INDEMNITY],'')			as [Denied Indemnity],
+isnull(bcapr.[Currency],'AUD')				as [Currency],
+bcapr.[Activity Code]						as [Activity Code],
+isnull(bcapr.[Total GST],0)					as [Total GST],
+ps.[Excess]									as [Excess],
+ps.[Broker Name]							as [Broker Name],
+ps.[Broker email]							as [Broker email address],
+ps.[Scheme]									as [Scheme],
+ps.[UMR]									as [UMR],
+ps.[Line of Business]						as [Product],
+isnull(bcapr.[ClaimsCount],0)				as [ClaimsCount],
+
+isnull(coalesce(bcapr.[Claims Paid],bdc.[CLAIMS_PAI]),0) as [Claim Payment - pol ccy-excl GST],
+
+isnull(coalesce(bcapr.[Fees Paid],bdc.[FEES_PAID]),0)	as [Fees Payment - pol ccy-excl GST],
+
+isnull(coalesce(bcapr.[Total Incurred],(isnull(bdc.[CURRENT_CL],0)+isnull(bdc.[CURRENT_FE],0)+isnull(bdc.[CLAIMS_PAI],0)+isnull(bdc.[FEES_PAID],0))),0)
+											as [Total Incurred],
+
+''											as [Date/Reminder_T/Actioned],
+
+isnull(coalesce(bcapr.[Cov Paid], fcf.[COV Paid]),0)			as COVPaid,	
+
+isnull(coalesce(bcapr.[Cov Outstanding], fcf.[COV Reserve]),0)  as COVReserve,	
+
+case when fc.[FT_CLAIM_NUMBER] is NOT NULL then isnull(fcf.[COV GST],0) else 0.00 end as COVGST,
+
+isnull(coalesce(bcapr.[Def Paid], fcf.[DEF Paid]),0)			as DEFPaid,	
+
+isnull(coalesce(bcapr.[Cov Outstanding], fcf.[DEF Reserve]),0)  as DEFReserve,	
+
+case when fc.[FT_CLAIM_NUMBER] is NOT NULL then isnull(fcf.[DEF GST],0) else 0.00 end as DEFGST,	
+
+case when fc.[FT_CLAIM_NUMBER] is NOT NULL then isnull(fcf.[DEF Recovery],0) else 0.00 end as DEFRecovery,	
+
+case when fc.[FT_CLAIM_NUMBER] is NOT NULL then isnull(fcf.[DEF Recovery GST],0) else 0.00 end as DEFRecoveryGST,	 
+	
+case when fc.[FT_CLAIM_NUMBER] is NOT NULL then isnull(fcf.[COV Recovery],0) else isnull(bcapr.[Recovery Received],0) end as COVRecovery,	
+
+case when fc.[FT_CLAIM_NUMBER] is NOT NULL then isnull(fcf.[COV Recovery GST],0) else 0.00 end as COVRecoveryGST,	
+
+case when fc.[FT_CLAIM_NUMBER] is NOT NULL then isnull(fcf.[SET Recovery],0) else 0.00 end as SETRecovery,	
+
+case when fc.[FT_CLAIM_NUMBER] is NOT NULL then isnull(fcf.[SET Recovery GST],0) else 0.00 end as SETRecoveryGST,	 
+
+'FIGTREE DATA'								as [FIGTREE DATA],
+--fc.*
+
+fc.[FT_ORG_CODE],
+fc.[FT_MODULE_CODE],
+fc.[FT_INCIDENT_NUMBER],
+fc.[FT_CLAIM_STATUS],
+fc.[FT_POLICY_NUMBER],
+fc.[FT_PIVOTAL_POLICY],
+fc.[FT_TYPE],
+fc.[FT_INSURED_NAME],
+fc.[FT_CLAIM_CODE],
+fc.[FT_CLAIM_NUMBER],
+fc.[FT_PRODUCT_CODE],
+fc.[FT_TP_CLAIMANT],
+fc.[FT_PAYEE],
+fc.[FT_CLAIM_DESCRIPTION],
+fc.[FT_CLAIM_OFFICER],
+fc.[FT_EML],
+fc.[FT_EXCESS],
+fc.[FT_SCHEME],
+fc.[FT_UMR],
+fc.[FT_CAPACITY_PROVIDER_REFERRAL],
+fc.[FT_DEFENCE],
+fc.[FT_PANEL_APPOINTED],
+fc.[FT_APPOINTED_FOR],
+fc.[FT_REASON_FOR_PANEL],
+fc.[FT_COVERAGE],
+fc.[FT_DATE_APPOINTED],
+fc.[FT_ASSESSOR],
+fc.[FT_COVERAGE_INDEMNITY_POSITION],
+fc.[FT_WATCH_LIST_FLAG],
+fc.[FT_DATE_OF_LOSS],
+fc.[FT_NOTIFICATION_DATE],
+fc.[FT_FINALISATION_DATE],
+fc.[FT_REOPENED_DATE],
+fc.[FT_OPENED_DATE],
+fc.[FT_CLAIM_PAID],
+fc.[FT_OS_RESERVE],
+fc.[FT_CLAIM_RECOVERED],
+fc.[FT_TOTAL_INCURRED],
+fc.[FT_REASON_FOR_DECLINATURE],
+fc.[FT_CLIENT],
+''											as [Reference],
+
+CASE WHEN fc.[FT_CLAIM_NUMBER] is NULL then 'Back Office' else 'FigTree' end as CLMDataSource
+--select *
+--from ##temp_3 t3
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_CLAIM] t3
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bcapr on t3.FULL_CLAIM_NUMB = bcapr.[Claim Number]
+left  join [RiskWriteApac].[dbo].[BO_DUALCLAIM] bdc on t3.CLAIM_NUMB = bdc.CLAIM_NUMB
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps on t3.[Policy number] = ps.PolicyNumber
+left  join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLAIMS] fc on t3.[FULL_CLAIM_NUMB] = fc.[FT_CLAIM_NUMBER]
+left  join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLMFINANCE] fcf on t3.[FULL_CLAIM_NUMB] = fcf.[FT_CLAIM_NUMBER]
+
+
+
+--) z
+
+
+
+PRINT ''; PRINT 'Delete duplicate Claims records from DM_AU_CLM_IMS_ETL_BO_FT_CLAIMS instead of trying to deal with crap data in legacy source tables'
+
+delete from a
+--select * 
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_FT_CLAIMS] a
+inner join
+(SELECT MAX(%%lockres%%) pseudoID 
+      ,[BO Claim Number]
+      ,[Claim Number]
+      ,[BO FTClaimNumber]
+      ,[Policy Number]
+      ,[BO Trimmed Policy Number]
+      ,[RiskWrite Policy Number]
+      ,[WebRater Policy Number]
+      ,[Year Letter]
+      ,[Claimant]
+      ,[Contract]
+      ,[Status]
+      ,[Type]
+      ,[Claim Code]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_FT_CLAIMS]  
+GROUP BY 
+       [BO Claim Number]
+      ,[Claim Number]
+      ,[BO FTClaimNumber]
+      ,[Policy Number]
+      ,[BO Trimmed Policy Number]
+      ,[RiskWrite Policy Number]
+      ,[WebRater Policy Number]
+      ,[Year Letter]
+      ,[Claimant]
+      ,[Contract]
+      ,[Status]
+      ,[Type]
+      ,[Claim Code]) b ON		a.[BO Claim Number] = b.[BO Claim Number]
+							and a.[Claim Number] = b.[Claim Number]
+							and a.[BO FTClaimNumber] = b.[BO FTClaimNumber]
+							and a.[Policy Number] = b.[Policy Number]
+							and a.[BO Trimmed Policy Number] = b.[BO Trimmed Policy Number]
+							and a.[RiskWrite Policy Number] = b.[RiskWrite Policy Number]
+							and a.[WebRater Policy Number] = b.[WebRater Policy Number]
+							and a.[Year Letter] = b.[Year Letter]
+							and a.[Claimant] = b.[Claimant]
+							and a.[Contract] = b.[Contract]
+							and a.[Status] = b.[Status]
+							and a.[Type] = b.[Type]
+							and a.[Claim Code] = b.[Claim Code]
+							and b.pseudoID <> a.%%lockres%%
+
+
+PRINT ''; PRINT 'Delete duplicate Claims records from DM_AU_CLM_IMS_ETL_BO_FT_CLAIMS where the RiskWrite Risk Id is not valid, instead of trying to deal with crap data in legacy source tables'
+							
+delete b
+--select r.riskid, b.*
+from 
+(select [Claim Number], COUNT(*) as dupes
+  FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_FT_CLAIMS]
+  group by [Claim Number]
+ having COUNT(*) > 1) a
+ inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_FT_CLAIMS] b on a.[Claim Number] = b.[Claim Number]
+ left join [RiskWriteApac].[dbo].[risk] r on b.[RiskWrite Policy Number] = r.riskid
+ where 1=1
+ and r.riskid is NULL
+
+ 
+PRINT ''; PRINT 'Delete duplicate Claims records from DM_AU_CLM_IMS_ETL_BO_FT_CLAIMS where the RiskWrite Risk Id is not the right one for the Claim, instead of trying to deal with crap data in legacy source tables'
+
+delete b
+--select b.[Claim Number], b.[Policy Number], b.[RiskWrite Policy Number], b.FT_PIVOTAL_POLICY
+from 
+(select 
+bfc.[Claim Number], COUNT(*)  as recs
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_FT_CLAIMS] bfc
+group by [Claim Number]
+having COUNT(*) > 1) a
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_FT_CLAIMS] b on a.[Claim Number] = b.[Claim Number]
+where 1=1
+and b.[RiskWrite Policy Number] <> b.FT_PIVOTAL_POLICY
+
+
+
+PRINT ''; PRINT getdate(); PRINT 'Exiting Stored Procedure [DM_AU_CLM_IMS_ETL_BO_FT_CLAIMS]' 
+
+END
+
+
+
+/*
+-- no missing claims
+select * from ##temp_3 tc
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS] boc on tc.CLAIM_NUMB = boc.[Claim Number]
+where 1=1
+and boc.[Claim Number] is NULL
+*/
+
+
+
+--select distinct * from ##temp_3 where [BO Insured] <> [RW Client Name]
+
+
+/*
+
+select count(*) from ##temp_3
+select count(distinct [CLAIM_NUMB]) from ##temp_3
+select count(distinct [POLICY_NUM]) from ##temp_3
+
+-- no dupe claims in ##temp_2
+select [CLAIM_NUMB], count(*) 
+from ##temp_2
+group by [CLAIM_NUMB]
+having COUNT(*) > 1
+
+-- no dupe claims in ##temp_3
+select [CLAIM_NUMB], count(*) 
+from ##temp_3
+group by [CLAIM_NUMB]
+having COUNT(*) > 1
+
+
+select * from ##temp_2 where [CLAIM_NUMB] = 67312
+select * from ##temp_3 where [CLAIM_NUMB] = 67312
+select * from [DM_IMS_AU_CLAIMS].[dbo].[BO_DUALDATA] where POLICY__ = 'EX-42044416H0 - EX'
+select * from [DM_IMS_AU_CLAIMS].[dbo].[risk] where riskid = 'EX-42044416H0'
+
+/*
+select * from [RiskWriteApac].[dbo].[risk] where id_risk = 256301
+select * from [RiskWriteApac].[dbo].[quotes] where id_risk = 256301
+select * from [RiskWriteApac].[dbo].[quotesection] where id_quot in (268107)
+select * from [RiskWriteApac].[dbo].[quotepremium] where id_qtsn in (3392819)
+
+*/
+
+*/
+
+
+
+-- Bring this UNION back in when you've got all the Shell columns populated
+/*
+union all
+
+SELECT bc.[CLAIM_NUMB], bc.POLICY_NUM, tc.riskid, tc.riskextref, 'Claim Policy No. not in RiskWrite - Default Migration Broker' as [brokercompanyname], 'AUS' as [Broker State]
+FROM [RiskWriteApac].[dbo].[BO_DUALCLAIM] bc
+left join ##temp_2 tc on bc.CLAIM_NUMB = tc.[CLAIM_NUMB]
+where 1=1
+and tc.[CLAIM_NUMB] is NULL
+order by tc.[CLAIM_NUMB]
+
+*/
+
+-- a thought for policy not in RiskWrite to get Broker details
+--  select * FROM [RiskWriteApac].[dbo].[brokercompany] where invoiceforename like '%migration%'
+
+
+
+/*
+select CLAIM_NUMB, COUNT(*)
+from ##temp_1
+group by CLAIM_NUMB
+having COUNT(*) > 1
+
+select * from ##temp_1 where CLAIM_NUMB in (20447, 40696, 51368) order by CLAIM_NUMB
+
+select * from ##temp_1 order by CLAIM_NUMB
+
+select * from ##temp_1 where riskid is NULL order by CLAIM_NUMB
+
+
+select CLAIM_NUMB, Condition, COUNT(*)
+from ##temp_1
+group by CLAIM_NUMB, Condition
+having COUNT(*) > 1
+
+
+SELECT bc.[CLAIM_NUMB], bc.POLICY_NUM, tc.riskid, tc.riskextref, 'Claim Policy No. not in RiskWrite - Default Migration Broker' as [brokercompanyname], 'AUS' as [Broker State]
+FROM [RiskWriteApac].[dbo].[BO_DUALCLAIM] bc
+left join ##temp_2 tc on bc.CLAIM_NUMB = tc.[CLAIM_NUMB]
+where 1=1
+and tc.[CLAIM_NUMB] is NULL
+and bc.POLICY_NUM like '% - %'
+order by bc.[CLAIM_NUMB]
+
+
+
+
+select distinct b.BINDERENDD, b.*
+from
+(select CLAIM_NUMB, POLICY_NUM, [CONTRAID], COUNT(*) as dupe
+from ##temp_3 
+group by CLAIM_NUMB, POLICY_NUM, [CONTRAID]
+having COUNT(*) > 1) a
+inner join [BO_PRODUCT]  b on a.[CONTRAID] = b.CONTRAID
+order by b.CONTRAID, b.BINDERENDD
+
+
+
+
+select CLAIM_NUMB, POLICY_NUM, [CONTRAID], [Insurer1Name], [Insurer2Name], [Insurer3Name], [Insurer4Name] from ##temp_3 where CLAIM_NUMB = 9624 --60355
+
+select * from BO_DUALDATA where POLICY__ = 'SL/79537/000/13/E'
+
+select * from [BO_PRODUCT] where CONTRAID in  ('EHOWDENS PI','ECVSTARR SL')
+
+select UMR, * from ##temp_3 where UMR is NULL order by ExpDate desc
+
+select distinct UMR, COUNT(*) from ##temp_3 group by UMR 
+
+select CLAIM_NUMB, POLICY_NUM, COUNT(*) from ##temp_3 group by CLAIM_NUMB, POLICY_NUM having COUNT(*) > 1
+
+select CLAIM_NUMB, POLICY_NUM, [CONTRAID], [Insurer1Name], [Insurer2Name], [Insurer3Name], [Insurer4Name] from ##temp_3 where CLAIM_NUMB = 9624 --60355
+
+select * from BO_DUALDATA where POLICY__ = 'SL/79537/000/13/E'
+
+select * from [BO_PRODUCT] where CONTRAID in  ('EHOWDENS PI','ECVSTARR SL')
+
+select SCHEME, count(*) from BO_DUALDATA group by SCHEME
+
+select SCHEME, count(*) from ##temp_3 group by SCHEME
+
+select YEAR_LETTE, count(*) from BO_DUALDATA group by YEAR_LETTE
+
+select [Year Letter], count(*) from ##temp_3 group by [Year Letter]
+
+select id_usrr_underwriter, count(*) from ##temp_3 group by id_usrr_underwriter
+
+select * from users where id_usrr in (23514, 23522, 29502, 16508, 23516)
+
+select id_usrr_underwriter, underwriter, * from ##temp_3 where id_usrr_underwriter in (23514, 23522, 29502, 16508, 23516) order by EXPDATE DESC
+
+select * from ##temp_3 order by  EXPDATE DESC
+select COUNT(*) from ##temp_3 
+select count(distinct policynumber) from ##temp_3 
+select count(distinct riskid) from ##temp_3 
+select count(distinct policy_num) from ##temp_3 
+
+
+
+select policynumber, COUNT(*) from ##temp_3 group by policynumber having COUNT(*) > 1
+
+select * from ##temp_3 where policynumber in ('GPA13525621M7')
+
+
+select b.*
+from
+(select policynumber, COUNT(*) as dupe
+from ##temp_3 
+group by policynumber
+having COUNT(*) > 1) a
+inner join ##temp_3  b on a.policynumber = b.policynumber
+order by b.expdate desc
+
+
+
+SELECT *
+  FROM [RiskWriteApac].[dbo].[BO_DUALDATA]
+  where POLICY__ like 'ACS06547819K0%'
+  order by POLICY_TO desc
+
+  select *
+  FROM [RiskWriteApac].[dbo].[BO_DUALCLAIM]
+  where POLICY_NUM like 'ACS06547819K0%'
+
+
+select b.*, 
+--c.*
+c.[BO insured], 
+clnt.CLIENTNAME
+from
+(select riskid, COUNT(*) as dupe
+from ##temp_3 
+group by riskid
+having COUNT(*) > 1) a
+inner join (select riskid,
+					min(policy_num) as min_policy_num,
+					max(policy_num) as max_policy_num
+				from ##temp_3
+				group by riskid)  b on a.riskid = b.riskid
+
+inner join ##temp_3 c on a.riskid = c.riskid
+inner join [RiskWriteApac].[dbo].[risk] rsk on c.riskid = rsk.riskid
+inner join [RiskWriteApac].[dbo].[client] clnt on rsk.id_clnt = clnt.id_clnt
+where 1=1
+and b.min_policy_num <> b.max_policy_num
+--and c.[BO insured] <> clnt.CLIENTNAME
+--and (c.[BO insured] like '%BizCover%' or clnt.CLIENTNAME like '%BizCover%')
+
+
+-- These Claims are in BO 
+
+select *
+from ##temp_3 
+where [FULL_CLAIM_NUMB] in 
+('DI03318',  --
+'DI03321', --
+'DI03330', --
+'DI03332', --
+'DI03337', --
+'DI03369') --
+
+
+
+*/
+

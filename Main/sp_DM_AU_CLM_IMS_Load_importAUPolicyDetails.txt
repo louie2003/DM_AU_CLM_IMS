@@ -1,0 +1,250 @@
+USE [DM_IMS_AU_CLAIMS]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_Load_importAUPolicyDetails]    Script Date: 22/02/2022 1:52:16 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER procedure [dbo].[sp_DM_AU_CLM_IMS_Load_importAUPolicyDetails] (
+						@servername VARCHAR(50) = '[AUSYDIMSD01]',
+						@dbname VARCHAR(50) = '[DUAL_Reporting]')
+as
+begin
+
+PRINT ''; PRINT getdate(); PRINT 'Entering Stored Procedure [sp_DM_AU_CLM_IMS_Load_importAUPolicyDetails]' 
+
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [DM_IMS_AU_CLAIMS] [Dual_PolicyDetails_Staging] table'
+
+
+delete from [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging]
+
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in [DM_IMS_AU_CLAIMS] [Dual_PolicyDetails_Staging]'
+
+insert into [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging]
+select 
+--select top 1000
+ g.[Firm order date]				as [SalesDate]
+
+,case when dba IS NULL then coalesce(ps.[Select InsuredName], g.[Policy Holder], 'Unknown') 
+			else coalesce(ps.[firstpart_InsuredName], g.[Policy Holder], 'Unknown') end
+																as [InsuredName]
+
+,g.[Year Letter]
+,g.[Policy number1]												as [PartialPolicyNumber]
+,g.[Suffix]
+--,g.[Policy Number]
+--,coalesce(ps.[RiskWrite RiskId],ps.[Policynumber]) as [Policy Number]
+,ps.[Policynumber]												as [Policy Number]
+
+,coalesce(ps.[EffDate], g.[Policy from])						as [EffectiveDate]
+,coalesce(ps.[ExpDate], g.[Policy to])							as [ExpirationDate]
+,coalesce(ps.[Activity Code], g.[Activity Code])				as [Activity Code]
+,coalesce(ps.[Indemnity Limit], g.[Límite Orden])				as [Límit]
+,coalesce(ps.[Primary / Excess / Coinsurance], g.[Layer],'Primary') as [Layer]
+,g.[Order]														as [OrderNumber]
+,coalesce(ps.[Excess], g.[Excess])								as [ExcessLimit]
+,coalesce(ps.[Currency], g.[Currency],'AUD')					as [Currency]
+,coalesce(ps.[Binder], g.[Contract])							as [Contract]
+,isnull(g.[Assets / Turnover],0)								as [AssetsTurnover]
+,isnull(g.[Client key],'DMIG')									as [BrokerKey]
+,coalesce(ps.[Broker Name], g.[broker name], v.[Broker Name], 'Default Broker for Migration') as [BrokerName]
+,coalesce(ps.[Producer Comm Percent], g.[Brokers % excluding cedant],0) as [BrokersPct]
+,coalesce(ps.[Broker State], g.[Brok# State], v.[Brok# State], 'Unknown') as [BrokerState]
+,coalesce(ps.[WrittenPremium], g.[Gross 100%], 0)				as [Premium]
+,coalesce(ps.[WrittenPremium]*(ps.[GSTPercent]/100), g.[GST])			as [GST]
+,coalesce(wf.[brokerage], g.[Brok# Comm#])						as [BrokerCommission]
+,coalesce(wf.[brokerage]*ps.[GSTPercent], g.[GST on broker comm]) as [GSTOnBrokerCommission]
+,isnull(g.[Adm# Fee],0) 										as [AdminFee]
+,g.[GST on adm# fee]											as [GSTOnAdminFee]
+,coalesce(ps.[WrittenPremium]+ps.[WrittenPremium]*(ps.[GSTPercent]/100), g.[Total]) as [Total]
+,isnull(g.[Adm# Fee]-g.[GST on adm# fee],0)						as [NetAdminFee]
+
+,v.[AmountDuetoProcessingBroker]	as [TotalDualBrokerage]
+
+,v.[AmountDuetoProcessingBroker]*g.[Insurer1share] as [NetDualBro1]
+,v.[AmountDuetoProcessingBroker]*cast(g.[Insurer2share] as float) as [NetDualBro2]
+,v.[AmountDuetoProcessingBroker]*cast(g.[Insurer3Share] as float) as [NetDualBro3]
+
+,v.[Wording]
+,case when g.[Status] = 'Dead' then 'Expired' 
+	  when g.[Policy to] < DATEADD(m, -3, getdate()) and g.[Status] = 'Current' then 'Expired' 
+		else g.[Status] end as [Status]
+
+,g.[Country Policy]					as [CountryPolicy]
+,g.[Reniew / New]					as [PolicyType]
+,g.[Type of policy]					as [TypeOfPolicy]
+,g.[Insurer1]						as [Insurer1Name]
+,g.[Insurer2]						as [Insurer2Name]
+,g.[Insurer3]						as [Insurer3Name]
+,g.[Insurer1Share]
+,cast(g.[Insurer2share] as float)	as [Insurer2share]
+,cast(g.[Insurer3Share]as float)	as [Insurer3Share]
+,g.[Income tax 3%]					as [IncomeTax3Percent]
+,ps.[GSTPercent]
+,isnull(g.[Office],'Unknown')		as [Office]
+,isnull(v.[Cluster Group],'Unknown') as [ClusterGroup]
+,isnull(g.[UW],'XX')				as [UW]
+
+, case when isdate(v.[ProposalDate]) = 1 then convert(varchar(10),convert(date,v.[ProposalDate],103),120) else convert(varchar(10),convert(date,g.[Policy from]	,103),120) end as [Proposal Date]
+
+,convert(varchar(10),convert(date,g.[Endorse from],103),120) as [Endorse from]
+
+,v.[Retro Date]						as [Retro Date]
+,ps.[Class]
+,coalesce(g.[Facility risk code], v.[Facility risk code], 'Unknown') as [FacilityRiskCode]
+,coalesce(g.[Scheme], v.scheme, 'Unknown') as [Scheme]
+,isnull(g.[Currency],'AUD')			as [Currency]
+,g.[FixedDIUL]						as [FixedCedeCalc]
+
+,case when LEN(g.[Number of Insureds]) > 10 then 1 
+	  when g.[Number of Insureds] IS NULL then 1 	
+	  else g.[Number of Insureds] end as [NumberOfInsureds]
+
+,g.[Year Letter]					as [Year Letter New]
+,g.[MasterPolicyFlag]
+,0.00								as [IncomeTaxInPercentage]
+,g.[Product]
+,isnull(ps.[Broker Email],'dualenquiries@dualaustralia.com.au') as [EmailAddress]
+,NULL								as [WithholdingTaxPremium]
+,NULL								as [WithholdingTaxAdmin]
+,NULL								as [WHTaxonAdminFee]
+,cast(g.[Insurer4Share] as float)	as [Insurer4share]
+,g.[Insurer4]						as [Insurer4Name]
+
+,v.[AmountDuetoProcessingBroker]*cast(g.[Insurer4Share] as float) as [NetDualBro4]
+
+,g.[Gross 100%]*g.[Brokers % excluding cedant]	as [BrokergaeOnPremium]
+,g.[Adm# Fee]*g.[Brokers % excluding cedant]	as [BrokerageonAdminFee]
+,g.[GST]										as [GSTOnPremium]
+,g.[CGcommissionLocked]
+,g.[Firm order date]				as [Month]
+,g.[UMR]
+,NULL								as [FSL]
+,g.[VAR]							as [VarCalculation]
+,cast(g.[Ins1_Cede_%] as float)		as [CedeIns1]
+,cast(g.[Ins2_Cede_%] as float)		as [CedeIns2]
+,cast(g.[Ins3_Cede_%] as float)		as [CedeIns3]
+,g.[PRODUCT]						as [Codigo]
+,0									as [DUILPercentage]
+,0									as [DUILCommission]
+,0									as [CGCommPercentage]
+,0									as [CGCommPerItem]
+,g.[Days Insured]					as [DaysInsured]
+,g.[Data_Source]					as [DataSource]
+,NULL								as [CoinsurerShare]
+,g.[Adm# Fee]-g.[GST on adm# fee]	as [NetAdminFee1]
+,0									as [DiffinAdminFee]
+,g.[GST on adm# fee]				as [GSTOnAdminFee1]
+,NULL								as [Verno]
+,g.[NZ Calc]						as [NZCalculation]
+,1									as [CountPolicy]
+,cast(g.[BeachCommssionIns1] as float) as [BeachCommIns1]
+,cast(g.[BeachCommissionIns2] as float)	as [BeachCommIns2]
+,cast(g.[BeachCommissionIns3] as float)	as [BeachCommIns3]
+,cast(g.[BeachCommissionIns4] as float)	as [BeachCommIns4]
+
+,NULL								as [Insurer1BE]
+,NULL								as [Insurer2BE]
+,NULL								as [Insurer3BE]
+,NULL								as [Insurer4BE]
+,NULL								as [AmountDueToHowden]
+,NULL								as [DualBroIns1Percent]
+,NULL								as [DualBroIns2Percent]
+,NULL								as [DualBroIns3Percent]
+,NULL								as [DualBroins4Percent]
+,1									as [Orden]
+,NULL as [FechaDeCobro]
+--,g.[Fecha De Cobro]					as [FechaDeCobro]
+,NULL								as [ClosingReceived]
+,NULL								as [ContractReview]
+,NULL								as [AnyOnePersonLimit]
+,NULL								as [Occupation]
+,g.[EVO]
+,ps.[RefPayToDual]
+,g.[Gross 100%]						as [PaidPremiums]
+,g.[Writeoff]
+,g.[AmtPayableTo]					as [AmountPayableTo]
+,GETDATE()							as [importDate]
+,ps.[RiskWrite RiskId]
+,ps.[RiskWrite RiskExtref]
+,ps.[RiskWrite Product]
+,ps.[dba]							as [InsuredNameDBA]
+,NULL								as [IMSLineName]
+,NULL								as [IMSLineGUID]
+--select ps.[Policynumber]
+--select distinct g.[UW]
+--select distinct ps.status --v.[Status] --g.[Status]
+--select g.[Status], g.[policy to], case when g.[Status] = 'Dead' then 'Expired' when g.[Policy to] < DATEADD(m, -3, getdate()) and g.[Status] = 'Current' then 'Expired' else g.[Status] end as [Status]
+
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+inner join (select [Policy number], max([firm order date]) [firm order date] 
+				from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] 
+				where 1=1
+				--and isnull(TransType,'Original') = 'Original'
+				group by [Policy number]) gmax on ps.PolicyNumber = gmax.[Policy number]
+
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] g on ps.PolicyNumber = g.[Policy number] and gmax.[firm order date] = g.[Firm order date]
+
+left join  [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR] v on ps.PolicyNumber = v.[Policy number] and gmax.[firm order date] = v.[Firm order date]
+
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_FILE] wf on ps.PolicyNumber = wf.[Policy number]
+
+where 1=1
+--and coalesce(ps.[Select InsuredName], g.[Policy Holder], 'Unknown') = 'Unknown'
+--and coalesce(ps.[RiskWrite RiskId],ps.[Policynumber])  = 'SD/15349/001/10/B'
+--and coalesce(ps.[RiskWrite RiskId],ps.[Policynumber]) is NULL
+--and (g.[Policy to] > '2020-01-01' or g.Status = 'Dead')
+--and ps.[RiskWrite RiskId]is NULL
+--and g.[broker name] is NULL
+--order by ps.[Policynumber]
+
+
+ 
+PRINT ''; PRINT getdate(); PRINT 'Delete duplicate Riskwrite Riskid rows from [importAUPolicyDetails] table'
+
+delete from a
+--select * 
+from [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging] a
+inner join
+(SELECT MAX(%%lockres%%) pseudoID, [PolicyNumber]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging]  
+GROUP BY [PolicyNumber]
+) b ON b.[PolicyNumber] = a.[PolicyNumber] AND b.pseudoID <> a.%%lockres%%
+
+
+
+--declare	@servername VARCHAR(50) = '[AUSYDIMSD01]'
+--declare @dbname VARCHAR(50) = '[DUAL_Reporting]'
+
+-- THIS IS THE REAL INSERT INTO [importAUPolicyDetails]
+-- THIS IS THE REAL INSERT INTO [importAUPolicyDetails]
+
+
+
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [Dual_Reporting] [importAUPolicyDetails] table'
+
+declare @sql_del varchar(max)
+
+set @sql_del = 'DELETE from ' + @ServerName + '.'+ @DBName +'.[dbo].[importAUPolicyDetails]'
+
+exec (@sql_del)
+
+
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in from [Dual_Reporting] [importAUPolicyDetails] table'
+
+
+declare @sql_insert varchar(max)
+
+set @sql_insert = '
+INSERT INTO ' + @ServerName + '.'+ @DBName +'.[dbo].[importAUPolicyDetails]
+SELECT *
+FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging]'
+
+
+exec (@sql_insert)
+
+PRINT ''; PRINT getdate(); PRINT 'Exiting Stored Procedure [sp_DM_AU_CLM_IMS_Load_importAUPolicyDetails]' 
+
+
+END

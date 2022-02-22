@@ -1,0 +1,116 @@
+USE [DM_IMS_AU_CLAIMS]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_GET_FIGTREE_CLAIM_NOTES]    Script Date: 22/02/2022 1:48:10 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER procedure [dbo].[sp_DM_AU_CLM_IMS_GET_FIGTREE_CLAIM_NOTES](
+						@servername VARCHAR(50) = '[AUSYDIMSD01]',
+						@dbname VARCHAR(50) = '[IMS]')
+--						@dbname VARCHAR(50) = '[IMS_AU_Claim]')
+						
+as
+begin
+
+PRINT ''; PRINT getdate(); PRINT 'Entering Stored Procedure [sp_DM_AU_CLM_IMS_ETL_FIGTREE_CLAIM_NOTES]' 
+-- Create FIGTREE table
+
+PRINT ''; PRINT getdate(); PRINT 'Create DM_AU_CLM_IMS_Dual_FigTreeClaim_Notes table from PROD FigTree database'
+
+IF OBJECT_ID('[DM_IMS_AU_CLAIMS].[dbo].[Dual_FigTreeClaim_Notes]', 'U') IS NOT NULL
+                DROP TABLE [DM_IMS_AU_CLAIMS].[dbo].[Dual_FigTreeClaim_Notes]
+
+PRINT ''; PRINT getdate(); PRINT 'Populate FigTreeClaim_Notes table from PROD FigTree database'
+
+
+CREATE TABLE [dbo].[Dual_FigTreeClaim_Notes](
+	[Claim Number] [nvarchar](255) NULL,
+	[Transaction Date] [date] NULL,
+	[Transaction Time] [nvarchar](255) NULL,
+	[Note Code] [nvarchar](255) NULL,
+	[Username] [nvarchar](300) NULL,
+	[Description] [nvarchar](max) NULL,
+	[Incident Number] [nvarchar](255) NULL,
+	[Expense Code] [nvarchar](255) NULL
+) ON [PRIMARY]
+
+insert into [DM_IMS_AU_CLAIMS].[dbo].[Dual_FigTreeClaim_Notes]
+select 
+ftc.FT_CLAIM_NUMBER as [Claim Number],
+ftn.TRANSACTION_DATE as [Transaction Date],
+ftn.TRANSACTION_TIME as [Transaction Time],
+isnull(xec.[Other Description],'Unmapped Expense Code') as [Note Code],
+ftn.USERNAME as [Username],
+
+case when ftn.[DESCRIPTION] = 'Incident' then ftn.[DESCRIPTION] + ' - ' + ftc.FT_INCIDENT_NUMBER else ftn.[DESCRIPTION] end as [Description],
+
+ftc.FT_INCIDENT_NUMBER as [Incident Number],
+
+ftn.EXPENSE_CODE as [Expense Code]
+
+From OPENQUERY([FIGDB], 'SELECT 
+--top 1000 
+F_EXPENSE_CODE as EXPENSE_CODE,
+F_TRANSACTION_DATE as TRANSACTION_DATE,
+F_TRANSACTION_TIME as TRANSACTION_TIME,
+F_USERNAME as USERNAME,
+SUBSTRING(F_DESCRIPTION,1,5000) AS DESCRIPTION,
+F_INCIDENT_NUMBER as INCIDENT_NUMBER
+
+FROM PUB.GCF040 
+where 1=1 
+and F_MODULE_CODE = ''G2'' 
+and F_CLIENT = ''MAIN'' 
+and f_transaction_type = ''N'' 
+--and F_INCIDENT_NUMBER = ''2022C0021413''
+order by 
+F_INCIDENT_NUMBER,
+F_TRANSACTION_DATE,
+F_TRANSACTION_TIME
+')  ftn
+
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLAIMS] ftc on ftn.INCIDENT_NUMBER = ftc.FT_INCIDENT_NUMBER
+inner join [DM_IMS_AU_CLAIMS].[dbo].[Dual_Claims_Staging] cs on ftc.FT_CLAIM_NUMBER = cs.[Claim Number]
+left join  [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_XREF_EXP_CODE] xec on ftn.EXPENSE_CODE = xec.[Expense Code]
+order by 
+ftc.FT_CLAIM_NUMBER,
+ftn.TRANSACTION_DATE desc,
+ftn.TRANSACTION_TIME desc
+
+
+PRINT '';PRINT 'Extract Table Field Clean Up - Remove special characters like LF and CR'
+
+
+update [DM_IMS_AU_CLAIMS].[dbo].[Dual_FigTreeClaim_Notes]
+	set [DESCRIPTION] = replace(Replace(Replace([DESCRIPTION], Char(9), ' '), Char(10), ' '), Char(13), ' ')
+
+
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [IMS] [Dual_FigTreeClaim_Notes_AU] table'
+
+declare @sql_del varchar(max)
+
+set @sql_del = 'DELETE from ' + @ServerName + '.'+ @DBName +'.[dbo].[Dual_FigTreeClaim_Notes_AU]'
+
+exec (@sql_del)
+
+--/*
+
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in [IMS] [Dual_FigTreeClaim_Notes] which will be imported into IMS'
+
+declare @sql_insert varchar(max)
+
+set @sql_insert = '
+INSERT INTO ' + @ServerName + '.'+ @DBName +'.[dbo].[Dual_FigTreeClaim_Notes_AU]
+select *
+from [DM_IMS_AU_CLAIMS].[dbo].[Dual_FigTreeClaim_Notes]'
+
+exec (@sql_insert)
+
+--*/
+
+
+PRINT ''; PRINT getdate(); PRINT 'Exiting Stored Procedure [DM_AU_CLM_IMS_ETL_FIGTREE_CLAIM_NOTES]' 
+
+END

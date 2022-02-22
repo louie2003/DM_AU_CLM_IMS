@@ -1,0 +1,249 @@
+USE [DM_IMS_AU_CLAIMS]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_GET_FIGTREE_CLAIMS]    Script Date: 22/02/2022 1:48:49 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER procedure [dbo].[sp_DM_AU_CLM_IMS_GET_FIGTREE_CLAIMS]
+as
+begin
+
+PRINT ''; PRINT getdate(); PRINT 'Entering Stored Procedure [DM_AU_CLM_IMS_ETL_FIGTREE_CLAIMS]' 
+-- Create FIGTREE table
+
+PRINT ''; PRINT getdate(); PRINT 'Create DM_AU_CLM_IMS_FIGTREE_CLAIMS table from PROD FigTree database'
+
+IF OBJECT_ID('[DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLAIMS]', 'U') IS NOT NULL
+                DROP TABLE [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLAIMS]
+
+PRINT ''; PRINT getdate(); PRINT 'Populate DM_AU_CLM_IMS_FIGTREE_CLAIMS table from PROD FigTree database'
+
+CREATE TABLE [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLAIMS](
+[FT_ORG_CODE] [varchar](255) NOT NULL,
+[FT_MODULE_CODE] [varchar](6) NOT NULL,
+[FT_INCIDENT_NUMBER] [varchar](50) NOT NULL,
+[FT_CLAIM_STATUS] [char](6) NULL,
+[FT_POLICY_NUMBER] [varchar](50) NULL,
+[FT_PIVOTAL_POLICY] [varchar](50) NULL,
+[FT_TYPE] [varchar](10) NULL,
+[FT_INSURED_NAME] [varchar](max) NULL,
+[FT_CLAIM_CODE] [varchar](50) NULL,
+[FT_CLAIM_NUMBER] [varchar](50) NULL,
+[FT_PRODUCT_CODE] [varchar](50) NULL,
+[FT_TP_CLAIMANT] [varchar](max) NULL,
+[FT_PAYEE] [text] NOT NULL,
+[FT_CLAIM_DESCRIPTION] [varchar](max) NULL,
+[FT_CLAIM_OFFICER] [varchar](50) NULL,
+[FT_EML] [numeric](17, 6) NULL,
+[FT_EXCESS] [numeric](21, 6) NULL,
+[FT_SCHEME] [varchar](50) NULL,
+[FT_UMR] [varchar](50) NULL,
+[FT_CAPACITY_PROVIDER_REFERRAL] [varchar](max) NULL,
+[FT_DEFENCE] [varchar](13) NULL,
+[FT_PANEL_APPOINTED] [date] NULL,
+[FT_APPOINTED_FOR] [varchar](8) NULL,
+[FT_REASON_FOR_PANEL] [varchar](8) NULL,
+[FT_COVERAGE] [varchar](18) NULL,
+[FT_DATE_APPOINTED] [date] NULL,
+[FT_ASSESSOR] [varchar](40) NULL,
+[FT_COVERAGE_INDEMNITY_POSITION] [varchar](36) NULL,
+[FT_WATCH_LIST_FLAG] [bit] NULL,
+[FT_DATE_OF_LOSS] [date] NOT NULL,
+[FT_NOTIFICATION_DATE] [date] NULL,
+[FT_FINALISATION_DATE] [date] NULL,
+[FT_REOPENED_DATE] [date] NULL,
+[FT_OPENED_DATE] [date] NOT NULL,
+[FT_CLAIM_PAID] [numeric](31, 6) NULL,
+[FT_OS_RESERVE] [numeric](21, 6) NULL,
+[FT_CLAIM_RECOVERED] [numeric](21, 6) NULL,
+[FT_TOTAL_INCURRED] [numeric](23, 6) NULL,
+[FT_REASON_FOR_DECLINATURE] [varchar](max) NULL,
+[FT_CLIENT] [char](4) NOT NULL
+
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+
+
+insert into [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLAIMS]
+select * FROM OPENQUERY([FIGDB],
+'SELECT 
+F_ORG_CODE AS FT_ORG_CODE,																					-- Organisation Code (Country)
+F_MODULE_CODE AS FT_MODULE_CODE,																			-- G2 for Dual Australia -- also known as COB in FigTree itself
+
+F_INCIDENT_NUMBER AS FT_INCIDENT_NUMBER,																	-- FIGTREE Claim Number
+
+CASE WHEN F_STATUS = ''F'' THEN ''Closed'' WHEN F_STATUS = ''C'' THEN ''Open'' END AS FT_CLAIM_STATUS,		-- C = Open, F = Clsoed
+
+F_SPARE_CHAR_2 AS FT_POLICY_NUMBER, 																		-- Policy Number, link to RiskWrite RISKEXTREF, WebRater Policy No., sometimes to BackOffice Policy No. 
+F_SPARE_CHAR_13 AS FT_PIVOTAL_POLICY,																		-- Pivotal Policy, link to RiskWrite RISKID, sometimes to Backoffice Policy No. 
+
+CASE WHEN F_SPARE_08_CODE = ''CLAIM'' THEN F_SPARE_08_CODE ELSE ''CIRC'' END AS FT_TYPE,					-- Claim record Type - Claim or Circumstance
+
+F_SPARE_CHAR_6 AS FT_INSURED_NAME,																			-- Insured Name
+F_SPARE_26_CODE AS FT_CLAIM_CODE,																			-- Dual Claim Code
+left(F_SPARE_CHAR_7,7) AS FT_CLAIM_NUMBER,																	-- Dual Claim No.
+F_SPARE_06_CODE AS FT_PRODUCT_CODE,																			-- Policy PRODUCT Type
+
+F_SPARE_CHAR_5 AS FT_TP_CLAIMANT,
+'''' AS FT_PAYEE,
+--F_SPARE_CHAR_10 AS FT_BROKER_EMAIL_ADDRESS, -- CRASHES SQL WITH DBTYPE DATE ERROR
+
+F_ACCIDENT_DESCRIPTION AS FT_CLAIM_DESCRIPTION,
+--F_EDITOR_1 AS FT_NOTES,  -- CRASHES SQL WITH DBTYPE DATE ERROR
+F_SPARE_04_CODE AS FT_CLAIM_OFFICER,
+F_SPARE_DECIMAL_10 AS FT_EML,
+F_EXCESS AS FT_EXCESS,
+F_SPARE_49_CODE AS FT_SCHEME,
+F_SPARE_CHAR_15 AS FT_UMR,
+
+F_EDITOR_2 AS FT_CAPACITY_PROVIDER_REFERRAL, 
+F_SPECIAL_1_CODE AS FT_DEFENCE,
+
+F_REPORTED_DATE AS FT_PANEL_APPOINTED,
+F_SPARE_07_CODE AS FT_APPOINTED_FOR,
+F_SPARE_07_CODE AS FT_REASON_FOR_PANEL,
+F_SPARE_29_CODE AS FT_COVERAGE,
+F_REPORTABLE_DATE AS FT_DATE_APPOINTED,
+F_MACHINE_CODE AS FT_ASSESSOR,
+
+CASE WHEN F_SPARE_12_CODE = ''01'' THEN F_SPARE_12_CODE + '' - Claim Accepted''
+	 WHEN F_SPARE_12_CODE = ''02'' THEN F_SPARE_12_CODE + '' - Claim Denied''
+	 WHEN F_SPARE_12_CODE = ''03'' THEN F_SPARE_12_CODE + '' - NZ Pending''
+	 WHEN F_SPARE_12_CODE = ''04'' THEN F_SPARE_12_CODE + '' - Claim Withdrawn''
+	 WHEN F_SPARE_12_CODE = ''CIRC'' THEN F_SPARE_12_CODE + '' - Circumstances''
+	 WHEN F_SPARE_12_CODE = ''CR'' THEN F_SPARE_12_CODE + '' - Circumstances''
+	 WHEN F_SPARE_12_CODE = ''ING'' THEN F_SPARE_12_CODE + '' - Indemnity TBC''
+	 WHEN F_SPARE_12_CODE = ''PAR'' THEN F_SPARE_12_CODE + '' - Partial''
+	 WHEN F_SPARE_12_CODE = ''GWR'' THEN F_SPARE_12_CODE + '' - Granted with Reservation''
+			END AS FT_COVERAGE_INDEMNITY_POSITION,
+
+F_SPARE_LOGICAL_27 AS FT_WATCH_LIST_FLAG,
+
+-- DATES DATES DATES
+
+F_ACCIDENT_DATE AS FT_DATE_OF_LOSS,																				-- Date of Loss		
+
+case when F_SPARE_DATE_10 is NULL then F_ACCIDENT_DATE else F_SPARE_DATE_10 end AS FT_NOTIFICATION_DATE,		-- Claim Notification Date
+
+case when F_STATUS = ''F'' then F_FINALISATION_DATE
+	 when F_STATUS = ''C'' and F_REOPENED_DATE > F_FINALISATION_DATE then NULL 
+	 end AS FT_FINALISATION_DATE,																				-- Date Claim Finalised
+											 
+F_REOPENED_DATE AS FT_REOPENED_DATE,																			-- Date Claim Reopened
+
+F_REGISTRATION_DATE AS FT_OPENED_DATE,												-							-- Opened Date
+
+-- FIGURES FIGURES 
+
+F_PAID_LTD AS FT_CLAIM_PAID,																					-- Total Paid to Date
+F_ESTIMATE_YOURS AS FT_OS_RESERVE,																				-- Outstanding Reserve Estimate
+F_RECOVERED_LTD AS FT_CLAIM_RECOVERED,																			-- Total Recovered to Date
+F_PAID_LTD+F_ESTIMATE_YOURS-F_RECOVERED_LTD AS FT_TOTAL_INCURRED,												-- Total Incurred
+
+''''     AS FT_REASON_FOR_DECLINATURE,
+
+''MAIN'' AS FT_CLIENT																		
+
+FROM PUB."GCF020"
+where 1=1
+and F_MODULE_CODE = ''G2'' 
+and F_ORG_CODE like ''AUS%''
+
+-- Some rubbish Claims we dont want
+and not(F_INCIDENT_NUMBER in (''2010C0015578'',''2014C0005529'',''2018C0012363'',''2004C0012781'',''2022C0020884'',''2022C0020973'',''2022C0021051'',''2022C0021184''))
+
+')
+
+
+PRINT ''; PRINT getdate(); PRINT 'Set up temp table for Reason for Declinature update because for some inexplicable reason it fails if extracted in the main query above' 
+
+if OBJECT_ID('tempdb..##temp_ft') is not null drop table ##temp_ft
+
+
+select ft.* 
+into ##temp_ft
+FROM OPENQUERY([FIGDB],
+'SELECT 
+F_ORG_CODE AS FT_ORG_CODE,                                                                                                                                           -- Organisation Code (Country)
+F_MODULE_CODE AS FT_MODULE_CODE,                                                                                                                              -- G2 for Dual Australia -- also known as COB in FigTree itself
+
+F_INCIDENT_NUMBER AS FT_INCIDENT_NUMBER,                                                                                                               -- FIGTREE Claim Number
+
+CASE WHEN F_SPARE_12_CODE = ''01'' THEN F_SPARE_12_CODE + '' - Claim Accepted''
+       WHEN F_SPARE_12_CODE = ''02'' THEN F_SPARE_12_CODE + '' - Claim Denied''
+       WHEN F_SPARE_12_CODE = ''03'' THEN F_SPARE_12_CODE + '' - NZ Pending''
+       WHEN F_SPARE_12_CODE = ''04'' THEN F_SPARE_12_CODE + '' - Claim Withdrawn''
+       WHEN F_SPARE_12_CODE = ''CIRC'' THEN F_SPARE_12_CODE + '' - Circumstances''
+       WHEN F_SPARE_12_CODE = ''CR'' THEN F_SPARE_12_CODE + '' - Circumstances''
+       WHEN F_SPARE_12_CODE = ''ING'' THEN F_SPARE_12_CODE + '' - Indemnity TBC''
+       WHEN F_SPARE_12_CODE = ''PAR'' THEN F_SPARE_12_CODE + '' - Partial''
+       WHEN F_SPARE_12_CODE = ''GWR'' THEN F_SPARE_12_CODE + '' - Granted with Reservation''
+                     END AS FT_COVERAGE_INDEMNITY_POSITION,
+
+F_ACCIDENT_LOCATION AS FT_REASON_FOR_DECLINATURE
+
+FROM PUB."GCF020"
+where 1=1
+and F_MODULE_CODE = ''G2'' 
+and F_ORG_CODE like ''AUS%''
+
+-- Claim Denied
+and F_SPARE_12_CODE = ''02''
+
+-- Accident Location is the reason for Declinature
+and F_ACCIDENT_LOCATION <> ''''
+
+') ft
+
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLAIMS] fc on ft.FT_INCIDENT_NUMBER = fc.FT_INCIDENT_NUMBER 
+
+
+PRINT ''; PRINT getdate(); PRINT 'Update DM_AU_CLM_IMS_FIGTREE_CLAIMS table with Reason for Declinature for Denied Claims from temp table'
+
+UPDATE fc set 
+--select 
+	[FT_REASON_FOR_DECLINATURE] = tft.[FT_REASON_FOR_DECLINATURE]
+from ##temp_ft tft
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLAIMS] fc on tft.FT_INCIDENT_NUMBER = fc.FT_INCIDENT_NUMBER 
+
+
+PRINT ''; PRINT getdate(); PRINT 'Delete duplicate Claim records (Lowest Incident Number) from DM_AU_CLM_IMS_FIGTREE_CLAIMS table which were from a Figtree bug years ago'
+
+delete d
+--select d.* 
+from
+(select [FT_CLAIM_NUMBER], [FT_INSURED_NAME], COUNT(*) as rec_count
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLAIMS]
+group by [FT_CLAIM_NUMBER], [FT_INSURED_NAME]
+having COUNT(*) > 1) a
+inner join (select [FT_CLAIM_NUMBER], min([FT_INCIDENT_NUMBER]) FT_INCIDENT_NUMBER from [DM_AU_CLM_IMS_FIGTREE_CLAIMS] group by [FT_CLAIM_NUMBER]) c on a.[FT_CLAIM_NUMBER] = c.[FT_CLAIM_NUMBER]
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLAIMS] d on a.[FT_CLAIM_NUMBER] = d.[FT_CLAIM_NUMBER] and c.[FT_INCIDENT_NUMBER] = d.[FT_INCIDENT_NUMBER]
+
+
+PRINT ''; PRINT getdate(); PRINT 'Delete duplicate Claim records (DUP in Insured Name) from DM_AU_CLM_IMS_FIGTREE_CLAIMS table which were entered into Figtree by mistake'
+
+delete d
+--select d.* 
+from
+(select [FT_CLAIM_NUMBER], COUNT(*) as rec_count
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLAIMS]
+group by [FT_CLAIM_NUMBER]
+having COUNT(*) > 1) a
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLAIMS] d on a.[FT_CLAIM_NUMBER] = d.[FT_CLAIM_NUMBER] and left(d.[FT_INSURED_NAME],3) = 'DUP'
+
+
+PRINT ''; PRINT getdate(); PRINT 'Update FigTree Claim table with correct Policy Numbers after FigTree Claim to RiskWrite and BO matching program has been run'
+
+update ftc
+	set
+--select gu.F_INCIDENT_NUMBER, gu.F_SPARE_CHAR_2, gu.F_SPARE_CHAR_13, ftc.FT_INCIDENT_NUMBER, ftc.FT_POLICY_NUMBER, ftc.FT_PIVOTAL_POLICY,
+		FT_POLICY_NUMBER = gu.F_SPARE_CHAR_2,
+		FT_PIVOTAL_POLICY = gu.F_SPARE_CHAR_13 
+from [RiskWriteApac].[dbo].[GCF020_UPDATE] gu
+inner join [DM_AU_CLM_IMS_FIGTREE_CLAIMS] ftc on gu.F_INCIDENT_NUMBER = ftc.FT_INCIDENT_NUMBER
+
+
+PRINT ''; PRINT getdate(); PRINT 'Exiting Stored Procedure [DM_AU_CLM_IMS_ETL_FIGTREE_CLAIMS]' 
+
+END

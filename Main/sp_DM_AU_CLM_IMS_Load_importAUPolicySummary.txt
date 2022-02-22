@@ -1,0 +1,119 @@
+USE [DM_IMS_AU_CLAIMS]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_Load_importAUPolicySummary]    Script Date: 22/02/2022 1:52:49 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER procedure [dbo].[sp_DM_AU_CLM_IMS_Load_importAUPolicySummary] (
+						@servername VARCHAR(50) = '[AUSYDIMSD01]',
+						@dbname VARCHAR(50) = '[DUAL_Reporting]')
+as
+begin
+
+
+--/*
+
+
+PRINT ''; PRINT getdate(); PRINT 'Entering Stored Procedure [sp_DM_AU_CLM_IMS_Load_importAUPolicySummary]' 
+
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [DM_IMS_AU_CLAIMS] [Dual_PolicySummary_Staging] table'
+
+
+delete from [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicySummary_Staging]
+
+
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in [DM_IMS_AU_CLAIMS] [Dual_PolicySummary_Staging]'
+
+insert into [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicySummary_Staging]
+SELECT 
+ pds.LegacyID
+,ps.[New/Renew]
+,pds.[InsuredName]										as [Insured Name]
+,pds.[BrokerName]										as [Broker Name]
+,pds.[BrokerState]										as [Broker State]
+,coalesce(ps.[EffDate], pds.[EffectiveDate])			as [EffDate]
+,coalesce(ps.[ExpDate], pds.[ExpirationDate])			as [ExpDate]
+,ps.[Carrier Code]
+,ps.[WrittenPremium]
+,ps.[Gross Comm Percent]
+,ps.[Producer Comm Percent]
+,ps.[Indemnity Limit]
+,ps.[Line of Business]
+,ps.[Policy Section]
+,coalesce(ps.[Excess], pds.[ExcessLimit])				as [Excess]
+,pds.[Layer]											as [Primary / Excess / Coinsurance]
+,ps.[Binder]
+,ps.[Insurer1Name]
+,ps.[Insurer2Name]
+,ps.[Insurer3Name]
+,ps.[Insurer4Name]
+,pds.[Currency]
+,pds.[Scheme]
+,coalesce(ps.[Activity Code], pds.[ActivityCode])		as [Activity Code]
+,ps.[UMR]
+,ps.[Year Letter]
+,ps.[Year Letter New]
+,pds.[UW] as [Underwriter]
+--,[PolicyNumber]
+--,coalesce(ps.[RiskWrite RiskId], pds.[policynumber])	as [PolicyNumber]
+,pds.[policynumber]										as [PolicyNumber]
+
+,ps.[BillType]
+,ps.[CovCode]
+,NULL													as [Claims]
+,pds.InsuredName										as [CardName]
+,getdate()												as [ImportDate]   
+,ps.[RiskWrite RiskId]  
+
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+--inner join [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging] pds on coalesce(ps.[RiskWrite RiskId], ps.[policynumber]) = pds.PolicyNumber 
+inner join [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging] pds on ps.[policynumber] = pds.PolicyNumber 
+
+
+where 1=1
+
+ 
+PRINT ''; PRINT getdate(); PRINT 'Delete duplicate Riskwrite Riskid rows from [Dual_PolicySummary_Staging] table'
+
+delete from a
+--select * 
+from [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicySummary_Staging] a
+inner join
+(SELECT MAX(%%lockres%%) pseudoID, [PolicyNumber]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicySummary_Staging]  
+GROUP BY [PolicyNumber]
+) b ON b.[PolicyNumber] = a.[PolicyNumber] AND b.pseudoID <> a.%%lockres%%
+
+
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [Dual_Reporting] [importAUPolicySummary] table'
+
+declare @sql_del varchar(max)
+
+set @sql_del = 'DELETE from ' + @ServerName + '.'+ @DBName +'.[dbo].[importAUPolicySummary]'
+
+exec (@sql_del)
+
+
+-- THIS IS THE REAL INSERT INTO [importAUPolicySummary]
+-- THIS IS THE REAL INSERT INTO [importAUPolicySummary]
+
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in from [Dual_Reporting] [importAUPolicySummary] table'
+
+
+declare @sql_insert varchar(max)
+
+set @sql_insert = '
+INSERT INTO ' + @ServerName + '.'+ @DBName +'.[dbo].[importAUPolicySummary]
+SELECT *
+FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicySummary_Staging]'
+
+
+exec (@sql_insert)
+
+
+PRINT ''; PRINT getdate(); PRINT 'Exiting Stored Procedure [sp_DM_AU_CLM_IMS_Load_importAUPolicySummary]' 
+
+
+END

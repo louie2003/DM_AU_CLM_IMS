@@ -1,0 +1,257 @@
+USE [DM_IMS_AU_CLAIMS]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_Load_Dual_FigTeeClaims]    Script Date: 22/02/2022 1:51:07 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER procedure [dbo].[sp_DM_AU_CLM_IMS_Load_Dual_FigTeeClaims] (
+						@servername VARCHAR(50) = '[AUSYDIMSD01]',
+						@dbname VARCHAR(50) = '[IMS]')
+--						@dbname VARCHAR(50) = '[IMS_AU_Claim]')
+
+as
+begin
+
+
+PRINT ''; PRINT getdate(); PRINT 'Entering Stored Procedure [sp_DM_AU_CLM_IMS_LOAD_TO_Dual_FigTeeClaims]' 
+-- Create Claims table which will be used to import data into IMS
+
+
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [DM_IMS_AU_CLAIMS] [Dual_Claims_Staging] table'
+
+DELETE FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_Claims_Staging]
+
+
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in [DM_IMS_AU_CLAIMS] [Dual_Claims_Staging]'
+
+INSERT INTO [DM_IMS_AU_CLAIMS].[dbo].[Dual_Claims_Staging]
+select 
+ [Claim Number]
+,[BO FTClaimNumber]
+,[BO FTClaimNumber]
+,[Policy Number]
+--,[RiskWrite Policy Number] as [Policy Number]
+,[RiskWrite Policy Number] as [RiskWrite RiskId] 
+,[Year Letter]
+,[Claimant]
+,[Contract]
+,[Payee]
+,[Status]
+,[Type]
+,[Claim Summary]
+,[Claim Code]
+,[Notes]
+,[Claim Handler]
+,[EML]
+,[Date of Loss]
+,[Date Claim Notified]
+,[Date Claim Opened]
+,[Date Claim Closed]
+,[FT_REOPENED_DATE]
+,[Capacity Provider Referral]
+,[Amount Claimed]
+,[Claim Reserve]
+,[Fee Reserve]
+,[Claim GST]
+,[Fees GST]
+,[Claims Paid]
+,[Fees Paid]
+,[Denied Indemnity]
+,[Currency]
+,[Activity Code]
+,[Total GST]
+,[Excess]
+,[Broker Name]
+,[Broker email address]
+,[Scheme]
+,[UMR]
+,[Product]
+,[ClaimsCount]
+,[Claim Payment - pol ccy-excl GST]
+,[Fees Payment - pol ccy-excl GST]
+,[Total Incurred]
+,[Date/Reminder_T/Actioned]
+,[FT_PANEL_APPOINTED]
+,[FT_APPOINTED_FOR]
+,[COVPaid]
+,[COVReserve]
+,[COVGST]
+,[DEFPaid]
+,[DEFReserve]
+,[DEFGST]
+,[FT_COVERAGE_INDEMNITY_POSITION]
+,left([FT_REASON_FOR_DECLINATURE],255)
+,[FT_WATCH_LIST_FLAG]
+,[Reference]
+,[CLMDataSource]
+,[DEFRecovery]
+,[DEFRecoveryGST]
+,[COVRecovery]
+,[COVRecoveryGST]
+,[SETRecovery]
+,[SETRecoveryGST]
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_FT_CLAIMS]
+
+
+PRINT ''; PRINT getdate(); PRINT 'Delete duplicate Claim data from [Dual_FigTreeClaims] table, selecting the right policy number to delete where FigTree policy is not the right RiskWrite policy'
+
+delete b
+--select b.[Claim Number], b.FTCClaimNumber, b.[Incident Number], b.[Policy Number], b.[RiskWrite RiskId], ft.FT_CLAIM_NUMBER, ft.FT_INCIDENT_NUMBER, ft.FT_POLICY_NUMBER, ft.FT_PIVOTAL_POLICY
+from 
+(select 
+ftc.[Claim Number], COUNT(*)  as recs
+from [DM_IMS_AU_CLAIMS].[dbo].[Dual_Claims_Staging] ftc
+group by [Claim Number]
+having COUNT(*) > 1) a
+inner join [DM_IMS_AU_CLAIMS].[dbo].[Dual_Claims_Staging] b on a.[Claim Number] = b.[Claim Number]
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLAIMS] ft on a.[Claim Number] = ft.FT_CLAIM_NUMBER
+inner join [DM_IMS_AU_CLAIMS].[dbo].[Dual_Claims_Staging] c on b.[Claim Number] = c.[Claim Number] and b.[Policy Number] <> c.[Policy Number]
+where 1=1
+and c.[Policy Number] = ft.FT_PIVOTAL_POLICY
+
+
+PRINT ''; PRINT getdate(); PRINT 'Clean up the last of the duplicates from [Dual_FigTreeClaims], gotten from dodgy data in Back Office, where Policy No is not in RiskWrite, easier to do here than try to track it in main sproc'
+
+delete b
+--select r.riskid, b.*
+from 
+(select [Claim Number], COUNT(*) as dupes
+  FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_Claims_Staging]
+  group by [Claim Number]
+ having COUNT(*) > 1) a
+ inner join [DM_IMS_AU_CLAIMS].[dbo].[Dual_Claims_Staging] b on a.[Claim Number] = b.[Claim Number]
+ left join [RiskWriteApac].[dbo].[risk] r on b.[Policy Number] = r.riskid
+ where 1=1
+ and r.riskid is NULL
+
+
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [IMS] [Dual_FigTreeClaims_AU] table'
+
+declare @sql_del varchar(max)
+
+set @sql_del = 'DELETE from ' + @ServerName + '.'+ @DBName +'.[dbo].[Dual_FigTreeClaims_AU]'
+
+exec (@sql_del)
+
+--DELETE FROM [AUSYDIMSD01].[IMS].[dbo].[Dual_FigTreeClaims_AU]
+
+--DELETE FROM [AUSYDIMSD01].[IMS_AU_Claim].[dbo].[Dual_FigTreeClaims]
+
+
+--/*
+
+-- Create Claim details table which will be used to import data into IMS
+-- Note, the table name of [IMS] [Dual_FigTreeClaims] is so that we don't have to modify the North American software which refers to this table name...the table contains data from FigTree and BackOffice
+
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in [IMS] [Dual_FigTreeClaims_AU] which will be imported into IMS'
+
+
+declare @sql_insert varchar(max)
+
+set @sql_insert = '
+INSERT INTO ' + @ServerName + '.'+ @DBName +'.[dbo].[Dual_FigTreeClaims_AU]
+select 
+ [Claim Number]
+,[FTCClaimNumber]
+,[Incident Number]
+,[Policy Number]
+,[RiskWrite RiskId] 
+,[Year Letter]
+,[Claimant]
+,[Contract]
+,[Payee]
+,[Status]
+,[Type]
+,[Claim Summary]
+,[Claim Code]
+,[Notes]
+,[Claim Handler]
+,[EML]
+,[Date of Loss]
+,[Date Claim Notified]
+,[Date Claim Opened]
+,[Date Claim Closed]
+,[Capacity Provider Referral]
+,[Capacity Provider Referral]
+,[Amount Claimed]
+,[Claim Reserve]
+,[Fee Reserve]
+,[Claim GST]
+,[Fees GST]
+,[Claim Paid]
+,[Fees Paid]
+,[Denied Indemnity]
+,[Currency]
+,[Activity Code]
+,[Total GST]
+,[Excess]
+,[Broker Name]
+,[Broker email address]
+,[Scheme]
+,[UMR]
+,[Product]
+,[Claims Count]
+,[Claim Payment - pol ccy-excl GST]
+,[Fees Payment - pol ccy-excl GST]
+,[Total Incurred]
+,[Date/Reminder_T/Actioned]
+,[Panel Appointed][Appointed For]
+,[Appointed For]
+,[COVPaid]
+,[COVReserve]
+,[COVGST]
+,[DEFPaid]
+,[DEFReserve]
+,[DEFGST]
+,[Coverage / Indemnity Position]
+,left([Reason for Declinature],255)
+,[Watch List Flag]
+,[Reference]
+,[CLMDataSource]
+,[DEFRecovery]
+,[DEFRecoveryGST]
+,[COVRecovery]
+,[COVRecoveryGST]
+,[SETRecovery]
+,[SETRecoveryGST]
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+from [DM_IMS_AU_CLAIMS].[dbo].[Dual_Claims_Staging]'
+
+exec (@sql_insert)
+
+--*/
+
+
+PRINT ''; PRINT getdate(); PRINT 'Exiting Stored Procedure [sp_DM_AU_CLM_IMS_LOAD_TO_Dual_FigTeeClaims]' 
+
+
+END
+
+

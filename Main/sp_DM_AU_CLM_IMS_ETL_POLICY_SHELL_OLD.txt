@@ -1,0 +1,1628 @@
+USE [DM_IMS_AU_CLAIMS]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_CREATE_POLICY_SHELL]    Script Date: 8/02/2022 1:37:39 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER procedure [dbo].[sp_DM_AU_CLM_IMS_CREATE_POLICY_SHELL]
+as
+begin
+
+PRINT ''; PRINT getdate(); PRINT 'Entering Stored Procedure [DM_AU_CLM_IMS_ETL_POLICY_SHELL]' 
+
+PRINT ''; PRINT getdate(); PRINT 'Build temp table of Policy and Claim Number from BO trying to match Policy to RiskWrite'
+
+if OBJECT_ID('tempdb..##temp_1') is not null drop table ##temp_1
+
+select
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref--  , 'Match on r.riskid = bd.[Policy number] whole field' as [Condition]
+into ##temp_1
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd on bc.CLAI_POL_NUM = bd.[Policy number]
+inner join [RiskWriteApac].[dbo].[Risk] r on r.riskid = bd.[Policy number]
+where 1=1
+and not(bd.[Policy number] like '% %')
+
+union
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref--  , 'Match on r.riskid = bd.[Policy number] dropped suffix'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd on bc.CLAI_POL_NUM = bd.[Policy number]
+inner join [RiskWriteApac].[dbo].[Risk] r on r.riskid = LEFT(bd.[Policy number], CHARINDEX(' ', bd.[Policy number]) - 0) 
+where 1=1
+and (bd.[Policy number] like '% %')
+
+union 
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref--  , 'Match on r.riskid = bd.EVO whole field'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd on bc.CLAI_POL_NUM = bd.[Policy number]
+inner join [RiskWriteApac].[dbo].[Risk] r on r.riskid = isnull(bd.EVO,'XXXXX')
+and not(isnull(bd.EVO,'XXXXX') like '% %')
+
+union 
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref--  , 'Match on r.riskid = bd.EVO dropped suffix'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd on bc.CLAI_POL_NUM = bd.[Policy number]
+inner join [RiskWriteApac].[dbo].[Risk] r on r.riskid = LEFT(isnull(bd.EVO,'XXXXX'), CHARINDEX(' ', bd.EVO) - 0)  
+where 1=1
+and (isnull(bd.EVO,'XXXXX') like '% %')
+
+union
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref--  , 'Match on r.riskextref = bd.[Policy number] whole field'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd on bc.CLAI_POL_NUM = bd.[Policy number]
+inner join [RiskWriteApac].[dbo].[Risk] r on r.riskextref = bd.[Policy number]
+where 1=1
+and not(bd.[Policy number] like '% %')
+
+union
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref--  , 'Match on r.riskextref = bd.[Policy number] dropped suffix'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd on bc.CLAI_POL_NUM = bd.[Policy number]
+inner join [RiskWriteApac].[dbo].[Risk] r on r.riskextref = LEFT(bd.[Policy number], CHARINDEX(' ', bd.[Policy number]) - 0) 
+where 1=1
+and (bd.[Policy number] like '% %')
+
+union
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref--  , 'Match on r.riskextref = bd.EVO whole field'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd on bc.CLAI_POL_NUM = bd.[Policy number]
+inner join [RiskWriteApac].[dbo].[Risk] r on r.riskextref = isnull(bd.EVO,'XXXXX')
+where 1=1
+and not(isnull(bd.EVO,'XXXXX') like '% %')
+
+union
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref--  , 'Match on r.riskextref = bd.EVO dropped suffix'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd on bc.CLAI_POL_NUM = bd.[Policy number]
+inner join [RiskWriteApac].[dbo].[Risk] r on r.riskextref = LEFT(isnull(bd.EVO,'XXXXX'), CHARINDEX(' ', bd.EVO) - 0)  
+where 1=1
+and (isnull(bd.EVO,'XXXXX') like '% %')
+
+--***************************************************************************************************************************************
+
+-- NO CLAIMS FOR POLICY
+
+--if OBJECT_ID('tempdb..##temp_1') is not null drop table ##temp_1
+
+union
+select
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref-- ,'Match on r.riskid = bd.[Policy number] whole field' as [Condition]
+--into ##temp_1
+--select *
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd 
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc on bc.CLAI_POL_NUM = bd.[Policy number]
+inner join [RiskWriteApac].[dbo].[Risk] r on r.riskid = bd.[Policy number]
+where 1=1
+and bc.[Claim Number] is NULL
+and not(bd.[Policy number] like '% %')
+
+union
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref-- ,'Match on r.riskid = bd.[Policy number] dropped suffix'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd 
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc on bc.CLAI_POL_NUM = bd.[Policy number]
+inner join [RiskWriteApac].[dbo].[Risk] r on r.riskid = LEFT(bd.[Policy number], CHARINDEX(' ', bd.[Policy number]) - 0) 
+where 1=1
+and bc.[Claim Number] is NULL
+and (bd.[Policy number] like '% %')
+
+union 
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref-- ,'Match on r.riskid = bd.EVO whole field'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd 
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc on bc.CLAI_POL_NUM = bd.[Policy number]
+inner join [RiskWriteApac].[dbo].[Risk] r on r.riskid = isnull(bd.EVO,'XXXXX')
+where 1=1
+and bc.[Claim Number] is NULL
+and not(isnull(bd.EVO,'XXXXX') like '% %')
+
+union 
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref-- ,'Match on r.riskid = bd.EVO dropped suffix'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd 
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc on bc.CLAI_POL_NUM = bd.[Policy number]
+inner join [RiskWriteApac].[dbo].[Risk] r on r.riskid = LEFT(isnull(bd.EVO,'XXXXX'), CHARINDEX(' ', bd.EVO) - 0)  
+where 1=1
+and bc.[Claim Number] is NULL
+and (isnull(bd.EVO,'XXXXX') like '% %')
+
+union
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref-- ,'Match on r.riskextref = bd.[Policy number] whole field'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd 
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc on bc.CLAI_POL_NUM = bd.[Policy number]
+inner join [RiskWriteApac].[dbo].[Risk] r on r.riskextref = bd.[Policy number]
+where 1=1
+and bc.[Claim Number] is NULL
+and not(bd.[Policy number] like '% %')
+
+union
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref-- ,'Match on r.riskextref = bd.[Policy number] dropped suffix'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd 
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc on bc.CLAI_POL_NUM = bd.[Policy number]
+inner join [RiskWriteApac].[dbo].[Risk] r on r.riskextref = LEFT(bd.[Policy number], CHARINDEX(' ', bd.[Policy number]) - 0) 
+where 1=1
+and bc.[Claim Number] is NULL
+and (bd.[Policy number] like '% %')
+
+union
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref-- ,'Match on r.riskextref = bd.EVO whole field'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd 
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc on bc.CLAI_POL_NUM = bd.[Policy number]
+inner join [RiskWriteApac].[dbo].[Risk] r on r.riskextref = isnull(bd.EVO,'XXXXX')
+where 1=1
+and bc.[Claim Number] is NULL
+and not(isnull(bd.EVO,'XXXXX') like '% %')
+
+union
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref-- ,'Match on r.riskextref = bd.EVO dropped suffix'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd 
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc on bc.CLAI_POL_NUM = bd.[Policy number]
+inner join [RiskWriteApac].[dbo].[Risk] r on r.riskextref = LEFT(isnull(bd.EVO,'XXXXX'), CHARINDEX(' ', bd.EVO) - 0)  
+where 1=1
+and bc.[Claim Number] is NULL
+and (isnull(bd.EVO,'XXXXX') like '% %')
+
+-- Policy not in RiskWrite
+
+union
+select
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref-- ,'Match on r.riskid = bd.[Policy number] whole field' as [Condition]
+--into ##temp_1
+--select *
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd 
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc on bc.CLAI_POL_NUM = bd.[Policy number]
+left join [RiskWriteApac].[dbo].[Risk] r on r.riskid = bd.[Policy number]
+where 1=1
+and r.riskid is NULL
+and not(bd.[Policy number] like '% %')
+
+union
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref-- ,'Match on r.riskid = bd.[Policy number] dropped suffix'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd 
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc on bc.CLAI_POL_NUM = bd.[Policy number]
+left join [RiskWriteApac].[dbo].[Risk] r on r.riskid = LEFT(bd.[Policy number], CHARINDEX(' ', bd.[Policy number]) - 0) 
+where 1=1
+and r.riskid is NULL
+and (bd.[Policy number] like '% %')
+
+union 
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref-- ,'Match on r.riskid = bd.EVO whole field'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd 
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc on bc.CLAI_POL_NUM = bd.[Policy number]
+left join [RiskWriteApac].[dbo].[Risk] r on r.riskid = isnull(bd.EVO,'XXXXX')
+where 1=1
+and r.riskid is NULL
+and not(isnull(bd.EVO,'XXXXX') like '% %')
+
+union 
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref-- ,'Match on r.riskid = bd.EVO dropped suffix'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd 
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc on bc.CLAI_POL_NUM = bd.[Policy number]
+left join [RiskWriteApac].[dbo].[Risk] r on r.riskid = LEFT(isnull(bd.EVO,'XXXXX'), CHARINDEX(' ', bd.EVO) - 0)  
+where 1=1
+and r.riskid is NULL
+and (isnull(bd.EVO,'XXXXX') like '% %')
+
+union
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref-- ,'Match on r.riskextref = bd.[Policy number] whole field'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd 
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc on bc.CLAI_POL_NUM = bd.[Policy number]
+left join [RiskWriteApac].[dbo].[Risk] r on r.riskextref = bd.[Policy number]
+where 1=1
+and r.riskid is NULL
+and not(bd.[Policy number] like '% %')
+
+union
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref-- ,'Match on r.riskextref = bd.[Policy number] dropped suffix'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd 
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc on bc.CLAI_POL_NUM = bd.[Policy number]
+left join [RiskWriteApac].[dbo].[Risk] r on r.riskextref = LEFT(bd.[Policy number], CHARINDEX(' ', bd.[Policy number]) - 0) 
+where 1=1
+and r.riskid is NULL
+and (bd.[Policy number] like '% %')
+
+union
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref-- ,'Match on r.riskextref = bd.EVO whole field'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd 
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc on bc.CLAI_POL_NUM = bd.[Policy number]
+left join [RiskWriteApac].[dbo].[Risk] r on r.riskextref = isnull(bd.EVO,'XXXXX')
+where 1=1
+and r.riskid is NULL
+and not(isnull(bd.EVO,'XXXXX') like '% %')
+
+union
+select 
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO, r.riskid, r.riskextref-- ,'Match on r.riskextref = bd.EVO dropped suffix'
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd 
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc on bc.CLAI_POL_NUM = bd.[Policy number]
+left join [RiskWriteApac].[dbo].[Risk] r on r.riskextref = LEFT(isnull(bd.EVO,'XXXXX'), CHARINDEX(' ', bd.EVO) - 0)  
+where 1=1
+and r.riskid is NULL
+and (isnull(bd.EVO,'XXXXX') like '% %')
+--select count(*) from ##temp_1
+
+--*********************************************************************************************************************************************
+
+PRINT ''; PRINT getdate(); PRINT 'Try to pick up some records where the BO Policy is not in RiskWrite but the Claim is in FigTree'
+
+if OBJECT_ID('tempdb..##temp_1_BO_not_in_RW') is not null drop table ##temp_1_BO_not_in_RW
+
+select  
+bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO,  r.riskid, r.riskextref, 'BO Policy not in RiskWrite, try FigTree Claim' as [Condition]
+into ##temp_1_BO_not_in_RW
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd on bc.CLAI_POL_NUM = bd.[Policy number]
+left join ##temp_1 t1 on bc.[Claim Number] = t1.[Claim Number]
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLAIMS] fc on bc.FTClmNumber = fc.FT_INCIDENT_NUMBER
+left join [RiskWriteApac].[dbo].[Risk] r on fc.FT_PIVOTAL_POLICY = r.riskid
+where 1=1
+and t1.[Claim Number] is NULL
+and r.riskid is NOT NULL
+order by bc.[Claim Number]
+
+
+
+----select count(*) from ##temp_1
+
+--PRINT ''; PRINT getdate(); PRINT 'Try to pick up some records where the BO Policy is not in RiskWrite but the Claim is in FigTree'
+
+--if OBJECT_ID('tempdb..##temp_1_BO_not_in_RW') is not null drop table ##temp_1_BO_not_in_RW
+
+--select  
+--bc.[Claim Number], bc.CLAI_POL_NUM, bd.[Policy number], bd.EVO,  r.riskid, r.riskextref, 'BO Policy not in RiskWrite, try FigTree Claim' as [Condition]
+--into ##temp_1_BO_not_in_RW
+--from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc
+--left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd on bc.CLAI_POL_NUM = bd.[Policy number]
+--left join ##temp_1 t1 on bc.[Claim Number] = t1.[Claim Number]
+--left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_FIGTREE_CLAIMS] fc on bc.FTClmNumber = fc.FT_INCIDENT_NUMBER
+--left join [RiskWriteApac].[dbo].[Risk] r on fc.FT_PIVOTAL_POLICY = r.riskid
+--where 1=1
+--and t1.[Claim Number] is NULL
+--and r.riskid is NOT NULL
+--order by bc.[Claim Number]
+
+
+-- Check for NULL riskid in ##temp_1
+
+--select * from ##temp_1 where riskid is NULL
+
+--select top 100 * from ##temp_1 where claim_numb = 76064
+
+
+PRINT ''; PRINT getdate(); PRINT 'Create a single Claim row in ##temp_2 with max RW ids from the data collected in the UNION query above to create ##temp_1'
+
+-- This creates a single Claim row in ##temp_2 with max RW id's from the data collected in the UNION query above to create ##temp_1
+
+if OBJECT_ID('tempdb..##temp_2') is not null drop table ##temp_2
+
+select [Claim Number], [Policy number],
+MAX(t1.riskid)		as riskid,
+MAX(t1.riskextref) as riskextref
+into ##temp_2
+from ##temp_1 t1
+--where riskid in (select 
+group by t1.[Claim Number], t1.[Policy number]
+
+
+
+PRINT ''; PRINT getdate(); PRINT 'Create a single Claim row in ##temp_2_BO_not_in_RW with max RW ids from the data collected in the UNION query above to create ##temp_1'
+
+-- This creates a single Claim row in ##temp_2 with max RW id's from the data collected in the UNION query above to create ##temp_1
+
+if OBJECT_ID('tempdb..##temp_2_BO_not_in_RW') is not null drop table ##temp_2_BO_not_in_RW
+
+select [Claim Number], [Policy number],
+MAX(t1.riskid)		as riskid,
+MAX(t1.riskextref) as riskextref
+into ##temp_2_BO_not_in_RW
+from ##temp_1_BO_not_in_RW t1
+group by t1.[Claim Number], t1.[Policy number]
+
+
+PRINT ''; PRINT getdate(); PRINT 'Combine the 2 temp tables'
+
+-- This creates a single Claim row in ##temp_2 with max RW id's from the data collected in the UNION query above to create ##temp_1
+
+if OBJECT_ID('tempdb..##temp_3_combo') is not null drop table ##temp_3_combo
+
+
+select *
+into ##temp_3_combo
+from ##temp_2
+
+union
+select *
+from ##temp_2_BO_not_in_RW
+
+
+PRINT ''; PRINT getdate(); PRINT 'Try to pick up some rogue claims'
+
+if OBJECT_ID('tempdb..##temp_4_rogue_ciaims') is not null drop table ##temp_4_rogue_ciaims
+
+--'BO Claim with FIGTREE Data Source is not in FigTree, policy not in RiskWrite, not extracted for Migration' as Condition,
+select 
+--select bc.CLMDATASOU as DataSource, bc.[Claim Number], bc.CLAI_POL_NUM as [Policy Number], bc.Type, bc.Status, bc.[Total Incurred]
+bc.[Claim Number], bp.[Policy number], bp.[Policy number] as riskid, bp.[Policy number] as riskextref
+into ##temp_4_rogue_ciaims
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR] bp on bc.CLAI_POL_NUM = bp.[Policy number]
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bpg on bc.CLAI_POL_NUM = bpg.[Policy number]
+left join ##temp_3_combo t3c on bc.[Claim Number] = t3c.[Claim Number]
+left join [RiskWriteApac].[dbo].[Risk] r on bc.CLAI_POL_NUM = r.riskextref
+where 1=1
+and bc.CLMDATASOU = 'FigTree'
+and t3c.[Claim Number] is NULL
+and r.riskid is NULL
+
+union
+--'BO Claim with CSN and ProClaim Data Source, policy not in RiskWrite, not extracted for Migration' as Condition,
+select 
+--select bc.CLMDATASOU as DataSource, bc.[Claim Number], bc.CLAI_POL_NUM as [Policy Number], bc.Type, bc.Status, bc.[Total Incurred]
+bc.[Claim Number], bp.[Policy number], bp.[Policy number] as riskid, bp.[Policy number] as riskextref
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bp on bc.CLAI_POL_NUM = bp.[Policy number]
+left join ##temp_3_combo t3c on bc.[Claim Number] = t3c.[Claim Number]
+left join [RiskWriteApac].[dbo].[Risk] r on bc.CLAI_POL_NUM = r.riskextref
+where 1=1
+and bc.CLMDATASOU <> 'FigTree'
+and not((bp.[Policy number] like '% %'))
+and t3c.[Claim Number] is NULL
+and r.riskid is NULL
+
+union
+--'BO Claim with CSN and ProClaim Data Source, policy not in RiskWrite, not extracted for Migration' as Condition,
+select 
+--select bc.CLMDATASOU as DataSource, bc.[Claim Number], bc.CLAI_POL_NUM as [Policy Number], bc.Type, bc.Status, bc.[Total Incurred]
+bc.[Claim Number], bp.[Policy number], bp.[Policy number] as riskid, bp.[Policy number] as riskextref
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bp on bc.CLAI_POL_NUM = bp.[Policy number]
+left join ##temp_3_combo t3c on bc.[Claim Number] = t3c.[Claim Number]
+left join [RiskWriteApac].[dbo].[Risk] r on r.riskid = LEFT(bp.[Policy number], CHARINDEX(' ', bp.[Policy number]) - 0) 
+where 1=1
+and bc.CLMDATASOU <> 'FigTree'
+and (bp.[Policy number] like '% %')
+and t3c.[Claim Number] is NULL
+and r.riskid is NULL
+order by bc.[Claim Number]
+
+
+PRINT ''; PRINT getdate(); PRINT 'Combine the 3 temp tables'
+
+if OBJECT_ID('tempdb..##temp_4_combo') is not null drop table ##temp_4_combo
+
+
+select *
+into ##temp_4_combo
+from ##temp_3_combo
+
+union
+select *
+from ##temp_4_rogue_ciaims
+
+
+/*
+
+select tc.* 
+from ##temp_2 tc 
+left join [RiskWriteApac].[dbo].[risk] r on tc.riskid = r.riskid
+where 1=1
+and r.riskid is NULL
+
+select tc.* 
+from ##temp_3_combo tc
+
+*/ 
+
+-- Check for duplicate Claims in ##temp_3_combo
+/*
+select [Claim Number], COUNT(*)
+from ##temp_3_combo
+group by [Claim Number]
+having COUNT(*) > 1
+order by [Claim Number]
+*/
+
+-- This query tells me which BO Claims I can't find a Policy for in Riskwrite from the consolidated data in ##temp_2
+/*
+SELECT bc.[CLAIM_NUMB], bc.POLICY_NUM, bc.TYPE, bp.EVO, bc.STATUS, 
+[CURRENT_CL]+[CURRENT_FE]+[CLAIMS_PAI]+[FEES_PAID] as incurred, bc.DATE_DUAL_, bc.DATE_OF_LO, r.riskid, bp.company_na,
+'FigTree data ==>', cae.F_INCIDENT_NUMBER, cae.[F_SC2_Policy_No], cae.[F_SC13_Pivotal_Pol_RW_RISKID]
+FROM [RiskWriteApac].[dbo].[BO_DUALCLAIM] bc
+inner join [RiskWriteApac].[dbo].[BO_DUALDATA] bp on bc.POLICY_NUM = bp.POLICY__
+left join [RiskWriteApac].[dbo].[CLAIM_ANALYSIS_EXTRACT] cae on bc.FTCLMNUMBE = cae.F_INCIDENT_NUMBER
+left join ##temp_3_combo tc on bc.CLAIM_NUMB = tc.[CLAIM_NUMB]
+left join [RiskWriteApac].[dbo].[risk] r on tc.riskid = r.riskid
+where 1=1
+and tc.[CLAIM_NUMB] is NULL
+--and bc.TYPE  = 'CLAIM'     -- CIRC takes it to over 1,040
+--and not(bc.STATUS = 'Closed' and [CURRENT_CL]+[CURRENT_FE]+[CLAIMS_PAI]+[FEES_PAID] = 0.00) -- this removes about 100 
+order by bc.[CLAIM_NUMB] desc
+
+--select * from ##temp_2 
+*/
+
+PRINT ''; PRINT getdate(); PRINT 'Build Claim trigger file for Policy Shell'
+
+
+IF OBJECT_ID('[DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_CLAIM]', 'U') IS NOT NULL
+                DROP TABLE [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_CLAIM]
+
+
+CREATE TABLE [dbo].[DM_AU_CLM_IMS_WORK_CLAIM](
+	[CLAIM_NUMB] [numeric](10, 0) NULL,
+	[FULL_CLAIM_NUMB] [nvarchar](255) NULL,
+	[Policy number] [nvarchar](255) NULL,
+	[riskid] [nvarchar](255) NULL,
+	[riskextref] [nvarchar](255) NULL,
+	[New/Renew] [varchar](1) NOT NULL,
+	[BO Insured] [nvarchar](255) NULL,
+	[RW Client Name] [nvarchar](800) NULL,
+	[Broker Name] [nvarchar](255) NULL,
+	[Broker State] [nvarchar](40) NULL,
+	[EffDate] [datetime2](7) NULL,
+	[ExpDate] [datetime2](7) NULL,
+	[Carrier Code] [varchar](1) NOT NULL,
+	[WrittenPremium] [numeric](18, 2) NULL,
+	[commission] [numeric](18, 2) NULL,
+	[Gross Comm Percent] [float] NULL,
+	[brokerage] [numeric](18, 2) NULL,
+	[Producer Comm Percent] [float] NULL,
+	[Indemnity Limit] [numeric](18, 0) NULL,
+	[CONTRAID] [nvarchar](100) NULL,
+	[Line of Business] [nvarchar](100) NULL,
+	[Policy Section] [varchar](1) NOT NULL,
+	[Excess] [numeric](18, 2) NULL,
+	[Primary / Excess / Coinsurance] [varchar](7) NOT NULL,
+	[Binder] [nvarchar](255) NULL,
+	[Insurer1Name] [nvarchar](100) NULL,
+	[Insurer2Name] [nvarchar](100) NULL,
+	[Insurer3Name] [nvarchar](100) NULL,
+	[Insurer4Name] [nvarchar](100) NULL,
+	[Currency] [varchar](3) NOT NULL,
+	[Scheme] [nvarchar](255) NOT NULL,
+	[Activity Code] [nvarchar](255) NOT NULL,
+	[UMR] [nvarchar](255) NULL,
+	[Year Letter] [nvarchar](10) NULL,
+	[Year Letter New] [nvarchar](10) NULL,
+	[Underwriter] [nvarchar](80) NULL,
+	[BillType] [varchar](1) NOT NULL,
+	[CovCode] [varchar](1) NOT NULL,
+	[id_usrr_underwriter] [numeric](10, 0) NULL,
+	[Broker Email] [nvarchar](2000) NULL,
+	[id_risk] [numeric](10, 0) NULL,
+	[GSTPercent] [float] NULL,
+	[Class] [nvarchar](255) NULL,
+	[RefPayToDual] [nvarchar](20) NULL,
+	[RiskWrite Product]  [nvarchar](255) NULL
+) ON [PRIMARY]
+
+--SELECT Z.* INTO [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_CLAIM] from
+insert into  [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_CLAIM] 
+select 
+distinct
+cast(substring(tc.[Claim Number],3,5) as numeric (10,0)) as [CLAIM_NUMB],
+tc.[Claim Number] as [FULL_CLAIM_NUMB],
+tc.[Policy number], 
+tc.[riskid], 
+tc.[riskextref], 
+--bd.[RENOVACI] as [New/Renew],
+'R'															as [New/Renew],
+bod.[Policy Holder]											as [BO Insured],
+clnt.[CLIENTNAME]											as [RW Client Name],		
+rbc.[brokercompanyname]										as [Broker Name], 
+--select distinct rbc.officeaddress5, rbc.invoiceaddress5,
+case when rbc.[officeaddress5] in ('ACT','NSW','NT','QLD','SA','TAS','VIC','WA','NZ') then rbc.[officeaddress5]
+	 when rbc.[invoiceaddress5] in ('ACT','NSW','NT','QLD','SA','TAS','VIC','WA','NZ') then rbc.[invoiceaddress5]
+	 when rbc.[invoiceaddress5] in ('Norther Territory','Northern Territory') then 'NT'
+	 when rbc.[invoiceaddress5] in ('South Australia') then 'SA'
+	 when rbc.[invoiceaddress5] in ('Western Australia') then 'WA'
+	 when rbc.[invoiceaddress5] in ('Canberra') then 'ACT'
+	 when rbc.[invoiceaddress5] in ('New South Wales') then 'NSW'
+	 when rbc.[invoiceaddress5] in ('Queensland') then 'QLD'
+	 when rbc.[invoiceaddress5] in ('New Zealand') then 'NZ'
+	 when rbc.[invoiceaddress5] in ('Tasmania') then 'TAS'
+		else 'Unknown'									end as [Broker State],
+
+rsk.[coverstart]											as EffDate,
+rsk.[coverend]												as ExpDate,
+''															as [Carrier Code],
+cast(isnull(figures.[WrittenPremium],0) as numeric(18,2))	as [WrittenPremium],
+cast(isnull(figures.[commission],0)	as numeric(18,2))		as [commission],
+cast(isnull(figures.[commissionpercentage],0) as float)/100	as [Gross Comm Percent],
+cast(isnull(figures.[brokerage],0) as numeric(18,2))		as [brokerage],
+cast(isnull(figures.[brokeragepercentage],0) as float)/100	as [Producer Comm Percent],
+cast(isnull(figures.[Indemnity Limit],0) as numeric(18,0))	as [Indemnity Limit],
+bprod.[CONTRAID],
+ltrim(rtrim(bprod.[PRODUCT]))								as [Line of Business],
+''															as [Policy Section],
+cast(isnull(figures.[Excess],0) as numeric(18,2))			as [Excess],
+
+case when rsk.[risktype] like '%X%' then 'Excess' else 'Primary' end as [Primary / Excess / Coinsurance],
+
+bod.[CONTRACT]												as [Binder],
+
+bprod.[INSURER1]											as [Insurer1Name],
+bprod.[INSURER2]											as [Insurer2Name],
+bprod.[INSURER3]											as [Insurer3Name],
+bprod.[INSURER4]											as [Insurer4Name],
+
+'AUD'														as [Currency],
+
+isnull(bod.[SCHEME],'')										as [Scheme],
+isnull(bod.[Activity Code],'')								as [Activity Code],
+case when bod.[UMR] = '' then NULL else bod.[UMR] end 		as [UMR],
+bprod.YEARLETTER											as [Year Letter],
+bprod.YEARLETTER											as [Year Letter New],
+
+
+usr.userid													as [Underwriter],
+--tc.[riskid]												as [PolicyNumber], 
+''															as [BillType],
+''															as [CovCode],
+rsk.id_usrr_underwriter,
+rbr.email													as [Broker Email],
+figures.id_risk												as id_risk,
+bod.GST														as [GSTPercent],
+bod.[PRODUCT]												as [Class],
+bd.REF__PAY_T												as [RefPayToDual],
+rprod.[Productname]											as [RiskWrite Product]
+
+--into ##temp_3
+
+from ##temp_4_combo tc
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bod on tc.[Policy number] = bod.[Policy number]
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR] bodv on tc.[Policy number] = bodv.[Policy number]
+left join [RiskWriteApac].[dbo].[risk] rsk on tc.riskid = rsk.riskid
+left join [RiskWriteApac].[dbo].[brokercompany] rbc on rsk.id_brkc = rbc.id_brkc
+left  join (select ID_BKRC, max(ID_BRKR) as ID_BRKR from [RiskWriteApac].[dbo].[broker] where isnull(EMAIL,'') <> '' group by ID_BKRC) rbrmax on rbc.id_brkc = rbrmax.ID_BKRC
+left  join [RiskWriteApac].[dbo].[broker] rbr on rbrmax.ID_BRKR = rbr.ID_BRKR
+left join [RiskWriteApac].[dbo].[client] clnt on rsk.id_clnt = clnt.id_clnt
+left join [RiskWriteApac].[dbo].[product] rprod on rsk.productid = rprod.PRODUCTID
+inner join (select [CONTRAID], max(BINDERENDD) as maxbinddate from [RiskWriteApac].[dbo].[BO_PRODUCT] group by [CONTRAID]) bprodmax on bod.[Year letter]+bod.[CONTRACT] = bprodmax.[CONTRAID] 
+inner join [RiskWriteApac].[dbo].[BO_PRODUCT] bprod on bprodmax.CONTRAID = bprod.CONTRAID and bprodmax.maxbinddate = bprod.BINDERENDD
+left join [RiskWriteApac].[dbo].[users] usr on rsk.id_usrr_underwriter = usr.id_usrr 
+left join  [RiskWriteApac].[dbo].[BO_DUALDATA] bd on tc.[Policy number] = bd.[POLICY__]
+
+--Getting Premium, Brokerage, Limit from RiskWrite
+left join 
+(select 
+--top 100
+q.id_risk,
+sum(isnull(qp.ownpremium,0))							as [WrittenPremium],-- [RW_NB_RN_Booked_Premium],
+max(isnull(qp.ownlimit,0))								as [Indemnity Limit], --[RW_NB_RN_Product_Limit],
+sum(isnull(qp.[commission],0))							as [commission],
+max(isnull(qp.[commissionpercentage],0))				as [commissionpercentage],
+sum(isnull(qp.[brokerage],0))							as [brokerage],
+max(isnull(qp.[brokeragepercentage],0))					as [brokeragepercentage],
+max(isnull(qp.[excess],0))								as [Excess]
+from [RiskWriteApac].[dbo].[quotes] q 
+left join [RiskWriteApac].[dbo].[quotesection] qs on q.id_quot = qs.ID_QUOT
+left join [RiskWriteApac].[dbo].[quotepremium] qp on qs.id_qtsn = qp.id_qtsn
+
+where 1=1
+and not(q.quotestatus in ('DECL','NTU','WIP'))
+group by 
+q.id_risk
+) figures on rsk.id_risk = figures.id_risk
+
+--) z
+
+-- work claim delete
+
+PRINT ''; PRINT 'Delete duplicate Claim records from WORK CLAIM leaving one record for the Policy instead of dealing with crap legacy claims data'
+
+delete from a
+--select b.* 
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_CLAIM] a
+inner join
+(SELECT MAX(%%lockres%%) pseudoID, 
+       [FULL_CLAIM_NUMB]
+      ,[Policy number]
+      ,[riskid]
+      ,[New/Renew]
+      ,[BO Insured]
+      ,[RW Client Name]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_CLAIM]  
+GROUP BY 
+       [FULL_CLAIM_NUMB]
+      ,[Policy number]
+      ,[riskid]
+      ,[New/Renew]
+      ,[BO Insured]
+      ,[RW Client Name]
+) b ON a.[FULL_CLAIM_NUMB] = b.[FULL_CLAIM_NUMB]
+       and a.[Policy number] = b.[Policy number]
+       and a.[riskid] = b.[riskid]
+       and a.[New/Renew] = b.[New/Renew]
+       and a.[BO Insured] = b.[BO Insured]
+       and a.[RW Client Name] = b.[RW Client Name]
+	   and b.pseudoID <> a.%%lockres%%
+where 1=1
+
+
+
+--select distinct [Broker Email] from ##temp_3
+--select * from ##temp_3 where  [Broker Email] is NULL
+
+
+PRINT ''; PRINT getdate(); PRINT 'Create table of Policy Shells for Claims to attach to in IMS'
+
+IF OBJECT_ID('[DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL]', 'U') IS NOT NULL
+		DROP TABLE [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL]
+		
+CREATE TABLE [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL](
+	[New/Renew] [nvarchar](255) NULL,
+	[Insured Name] [nvarchar](max) NULL,
+	[Broker Name] [nvarchar](max) NULL,
+	[Broker State] [nvarchar](255) NULL,
+	[EffDate] [date] NULL,
+	[ExpDate] [date] NULL,
+	[Carrier Code] [nvarchar](255) NULL,
+	[WrittenPremium] [numeric](18, 2) NULL,
+	[Gross Comm Percent] [numeric](18, 2) NULL,
+	[Producer Comm Percent] [float] NULL,
+	[Indemnity Limit] [numeric](18, 0) NULL,
+	[Line of Business] [nvarchar](255) NULL,
+	[Policy Section] [nvarchar](255) NULL,
+	[Excess] [numeric](18, 0) NULL,
+	[Primary / Excess / Coinsurance] [nvarchar](255) NULL,
+	[Binder] [nvarchar](255) NULL,
+	[Insurer1Name] [nvarchar](255) NULL,
+	[Insurer2Name] [nvarchar](255) NULL,
+	[Insurer3Name] [nvarchar](255) NULL,
+	[Insurer4Name] [nvarchar](255) NULL,
+	[Currency] [nvarchar](255) NULL,
+	[Scheme] [nvarchar](255) NULL,
+	[Activity Code] [nvarchar](255) NULL,
+	[UMR] [nvarchar](255) NULL,
+	[Year Letter] [nvarchar](255) NULL,
+	[Year Letter New] [nvarchar](255) NULL,
+	[Underwriter] [nvarchar](255) NULL,
+	[PolicyNumber] [nvarchar](255) NULL,
+	[BillType] [nvarchar](255) NULL,
+	[CovCode] [nvarchar](255) NULL,
+	[RiskWrite RiskId] [nvarchar](255) NULL,
+	[Broker Email] [nvarchar](255) NULL,
+	[InsuredName_Key] [nvarchar](max) NULL,
+	[Select InsuredName] [nvarchar](max) NULL,
+	[Original InsuredName] [nvarchar](max) NULL,
+	[min InsuredName] [nvarchar](max) NULL,
+	[max InsuredName] [nvarchar](max) NULL,
+	[firstpart_InsuredName] [nvarchar](max) NULL,
+	[dba] [nvarchar](max) NULL,
+	[GSTPercent] [numeric](18, 2) NULL,
+	[Class] [nvarchar](255) NULL,
+	[RefPayToDual] [nvarchar](255) NULL,
+	[RiskWrite RiskExtRef] [nvarchar](255) NULL,
+	[RiskWrite Product] [nvarchar](255) NULL,
+
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+
+
+PRINT ''; PRINT getdate(); PRINT 'Populate table of Policy Shells for Claims to attach to in IMS'
+
+INSERT INTO [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL]
+select distinct
+[New/Renew],
+[RW Client Name],
+[Broker Name],
+[Broker State],
+[EffDate],
+[ExpDate],
+[Carrier Code],
+[WrittenPremium],
+[Gross Comm Percent],
+[Producer Comm Percent],
+[Indemnity Limit],
+ltrim(rtrim([Line of Business])),
+[Policy Section],
+[Excess],
+[Primary / Excess / Coinsurance],
+[Binder],
+[Insurer1Name],
+[Insurer2Name],
+[Insurer3Name],
+[Insurer4Name],
+[Currency],
+[Scheme],
+[Activity Code],
+[UMR],
+[Year Letter],
+[Year Letter New],
+[Underwriter],
+[Policy number],
+[BillType],
+[CovCode],
+[riskid],
+[Broker Email],
+NULL,
+NULL,
+[RW Client Name],
+NULL,
+NULL,
+NULL,
+NULL,
+[GSTPercent],
+[Class],
+[RefPayToDual],
+[RiskExtRef],
+[RiskWrite Product]
+
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_CLAIM]
+--from ##temp_3
+
+
+PRINT ''; PRINT 'Delete duplicate Policy records from VAR-G, leaving one record for the Policy'
+
+delete from a
+--select * 
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] a
+inner join
+(SELECT MAX(%%lockres%%) pseudoID, [Policy number], [Firm order date], [Year letter], [Policy from], [Policy to]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION]  
+GROUP BY [Policy number], [Firm order date], [Year letter], [Policy from], [Policy to]
+) b ON b.[Policy number] = a.[Policy number] 
+							AND b.[Firm order date] = a.[Firm order date] 
+							AND b.[Year letter] = a.[Year letter] 
+							and a.[Policy from] = b.[Policy from]
+							and a.[Policy to] = b.[Policy to]
+							AND b.pseudoID <> a.%%lockres%%
+
+
+PRINT ''; PRINT 'Delete duplicate Policy records from VAR, leaving one record for the Policy'
+
+delete from a
+--select * 
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR] a
+inner join
+(SELECT MAX(%%lockres%%) pseudoID, [Policy number], [Firm order date], [Year letter], [Policy from], [Policy to]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR]  
+GROUP BY [Policy number], [Firm order date], [Year letter], [Policy from], [Policy to]
+) b ON b.[Policy number] = a.[Policy number] 
+							AND b.[Firm order date] = a.[Firm order date] 
+							AND b.[Year letter] = a.[Year letter] 
+							and a.[Policy from] = b.[Policy from]
+							and a.[Policy to] = b.[Policy to]
+							AND b.pseudoID <> a.%%lockres%%
+
+PRINT ''; PRINT 'Delete duplicate Policy records from POLICY SHELL, leaving one record for the Policy'
+
+delete from a
+--select b.* 
+--select count(*)
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] a
+inner join
+(SELECT MAX(%%lockres%%) pseudoID, [Policynumber], [effdate], [expdate], [Year letter], [Insured Name]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL]  
+GROUP BY [Policynumber], [effdate], [expdate], [Year letter], [Insured Name]
+) b ON b.[Policynumber] = a.[Policynumber] 
+							AND b.[EffDate] = a.[EffDate] 
+							AND b.[ExpDate] = a.[ExpDate] 
+							AND b.[Year letter] = a.[Year letter] 
+							AND b.pseudoID <> a.%%lockres%%
+
+
+
+PRINT ''; PRINT getdate(); PRINT 'Do some clean up of dodgy looking Insured Names before trying to rationalise names into a common name for insureds with multiple policies';
+
+update ps
+	set
+--select Insured,
+		[Insured Name] = ltrim(rtrim(REPLACE(replace(replace(replace(replace(TRIM([Insured Name]), CHAR(13),', '), CHAR(10), ', '), CHAR(9), ' '),'<BR>',', '),'?',' ')))
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and ([Insured Name] LIKE concat('%', char(13), '%') OR [Insured Name] LIKE concat('%', char(10), '%') OR [Insured Name] LIKE concat('%', char(9), '%') or [Insured Name] LIKE '%<BR>%' or [Insured Name] LIKE '%?%')
+
+
+PRINT ''; PRINT getdate(); PRINT 'Update temp InsuredName by replacing special characters CR, LF, TAB with commas';--•TIMELOG
+
+UPDATE [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] 
+	SET [insured Name] = 
+		replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(TRIM([insured Name]), 
+		CHAR(13),', '), 
+		CHAR(10), ', '), 
+		CHAR(9), ' ')	
+		,' ','<>'),
+		'><',''),
+		'<>',' ')
+		,' ,',',')	
+		,', ',',')
+		,',','<>'),
+		'><',''),
+		'<>',',')
+		,',',', ')
+where 1=1
+--and ([insured Name] LIKE concat('%', char(13), '%') OR [insured Name] LIKE concat('%', char(10), '%') OR [insured Name] LIKE concat('%', char(9), '%'))
+
+
+PRINT ''; PRINT getdate(); PRINT 'Update temp InsuredName by replacing multiple commas and other characters such as colons and semi-colons as the business prefers it'
+ 
+
+UPDATE [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] 
+	SET [insured Name] = 
+		replace(replace(replace(replace(replace(replace(replace(replace([insured Name],
+		', , ,',
+		', '),
+		', ,',', ')
+		,'; ',', ')
+		,'and;, b)'
+		,'and b)')
+		,',, ,'
+		,', '),
+		';, '
+		,', '),
+		':-,'
+		,': ')
+		,':, '
+		,', ')  
+where 1=1  
+
+
+PRINT ''; PRINT getdate(); PRINT  'Update temp InsuredName by replacing specific characters strings with comma space as the business requires it';--•TIMELOG
+
+UPDATE [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] 
+	SET [insured Name] = 
+		replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace([insured Name],
+		', ',', '), 
+		',    ,',', '),
+		',                     ',', '),
+		',   ,',', '),
+		',                           ',', '),
+		',              ' ,', '),
+		',                                  ',', '),
+		',  ',', '),
+		'&    ',', '),
+		',                ',', '),
+		'No Free       ',', '),
+		'Lunches Super Fund                ',', '),
+		',        ',', '),
+		',       ',', '),
+		',      ',', '),
+		'           and',' and')
+where 1=1  
+
+
+PRINT ''; PRINT getdate(); PRINT 'Update temp InsuredName to remove an end comma'
+
+UPDATE [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] 
+	SET [insured Name] = LEFT([insured Name],(LEN([Insured Name])-1))
+where 1=1
+and RIGHT([Insured Name],1) = ','
+
+PRINT ''; PRINT getdate(); PRINT 'Update temp InsuredName - a few finsihing touches up to finish up';--•TIMELOG
+--•TIMELOG
+
+UPDATE [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] 
+	SET [insured Name] = 
+		replace(replace(replace(replace(replace([insured Name],
+		', , ',', '), 
+		'     ',' '),
+		',,',','),
+		' , , ',', '),
+		', ,',', ')
+where 1=1  
+
+
+PRINT ''; PRINT getdate(); PRINT  'Create temp table of Policies which have potential common Insureds';
+
+if OBJECT_ID('tempdb..##temp_ps') is not null drop table ##temp_ps
+
+select 
+--top 100 
+
+[insured Name]							as [InsuredName],
+[insured Name]							as [InsuredName_Key],
+[insured Name]							as [InsuredName_Key_Substringed],
+9										as [Substringed]		
+
+into ##temp_ps
+
+--distinct wr.[status, count(*)
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+
+
+--•TIMELOG
+PRINT ''; PRINT getdate(); PRINT  'Update temp Insured Name Key table for specific values to create standardised values';--•TIMELOG
+--•TIMELOG
+
+--This one is creating mayhen with the INSUREDNAME_KEY so overriding it with a specific value because it ends up with one letter 'T'
+UPDATE ##temp_ps SET InsuredName_Key = 'TTTooTetsuyasRestaurant' where left(insuredname,22) = 'T Pty Ltd t/as Tetsuya';
+--These 3 may create issues with the INSUREDNAME_KEY if other similar name Insureds arrive later, so overriding them with specific values because they become so short - 2 letters'
+UPDATE ##temp_ps SET InsuredName_Key = '27SouthernCrosFinance' where insuredname = '27 Pty Ltd T/As Southern Cross Finance';
+UPDATE ##temp_ps SET InsuredName_Key = 'IQCompany' where insuredname = 'IQ Pty Ltd';
+UPDATE ##temp_ps SET InsuredName_Key = 'LXDesignHouseSolutionsTurnkey' where insuredname = 'LX Corporation Pty Ltd, LX Design House Pty Ltd, LX Solutions Pty Ltd, LX Turnkey Pty Ltd, LX Pty Ltd, LX Innovations Pty Ltd, Blyth Family Holdings Pty Ltd atf Blyth Family Trust';
+--Carry on
+UPDATE ##temp_ps SET InsuredName_Key = UPPER(InsuredName_Key); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, 'PROPRIETARY', ' PTY '); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, 'PTY.', ' PTY '); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, 'P/L', ' PTY LTD'); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, 'PTYLTD', ' PTY LTD'); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, 'LIMITED', ' LTD'); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, ' TA ', ' T/A '); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, 'T/AS', ' T/A'); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, 'T''AS', ' T/A'); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, ' TA ', ' T/A '); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, ' TAS ', ' T/A '); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, 'TRADING AS', ' T/A'); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, 'TRADING NAMES :', ' T/A'); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, 'TRADING NAMES', ' T/A'); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, 'TRADING NAME:', ' T/A'); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, 'TRADING NAME', ' T/A'); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, ',', ' '); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, '.', ' '); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, ' and ', '&'); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, '-', ' '); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, '''', ' '); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, '"', ' '); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, 'AS TRUSTEE FOR', ' ATF '); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, 'A/T/F', ' ATF '); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, 'AS TRADING FOR', ' ATF '); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, 'INCORPORATED', ' INC '); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, ' AUSTRALIA ', ' AUST '); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, ' AUSTRALASIA ', ' AUST '); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, '(AUSTRALIA)', '(AUST)'); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, '(AUSTRALASIA)', '(AUST)'); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, '1)', ''); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, '1.', ''); 
+UPDATE ##temp_ps SET InsuredName_Key = LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(InsuredName_Key, ' ', '[o][c]'), '[c][o]', ''), '[o][c]', ' '))); 
+UPDATE ##temp_ps SET InsuredName_Key = LEFT(InsuredName_Key, CHARINDEX('PTY LTD', InsuredName_Key + 'PTY LTD', 3) - 1); 
+UPDATE ##temp_ps SET InsuredName_Key = LEFT(InsuredName_Key, CHARINDEX('LTD', InsuredName_Key + 'LTD', 3) - 1); 
+UPDATE ##temp_ps SET InsuredName_Key = LEFT(InsuredName_Key, CHARINDEX(' INC', InsuredName_Key + ' INC', 3) - 1); 
+UPDATE ##temp_ps SET InsuredName_Key = LEFT(InsuredName_Key, CHARINDEX(' ATF', InsuredName_Key + ' ATF', 3) - 1); 
+UPDATE ##temp_ps SET InsuredName_Key = LEFT(InsuredName_Key, CHARINDEX(';', InsuredName_Key + ';', 3) - 1); 
+UPDATE ##temp_ps SET InsuredName_Key = LEFT(InsuredName_Key, CHARINDEX('AUST PTY', InsuredName_Key + 'AUST PTY', 3) - 1); 
+UPDATE ##temp_ps SET InsuredName_Key = LEFT(InsuredName_Key, CHARINDEX('T/A', InsuredName_Key + 'T/A', 3) - 1); 
+UPDATE ##temp_ps SET InsuredName_Key = REPLACE(InsuredName_Key, ' ', ''); 
+
+
+-- A bit of cleaning up for names that almost common but some have extra bits on the end - chopping that off to create coommonality
+--Locate substrings --•TIMELOG
+PRINT ''; PRINT getdate(); PRINT 'Set [InsuredName_Key_Substringed] = [InsuredName_Key]';--•TIMELOG
+--•TIMELOG
+
+UPDATE ##temp_ps SET [InsuredName_Key_Substringed] = [InsuredName_Key]; 
+
+/*
+PRINT ''; PRINT getdate(); PRINT 'A bit of cleaning up - update temp table';--•TIMELOG
+--•TIMELOG
+
+UPDATE tn1 
+SET 
+--select 
+	[InsuredName_Key_Substringed] = ( 
+	    SELECT TOP 1 InsuredName_Key 
+	    FROM ##temp_ps AS tn2 
+	    WHERE 1=1
+		and tn2.InsuredName_Key = LEFT(tn1.InsuredName_Key, len(tn2.InsuredName_Key)) 
+	    --and tn2.BrokerId = tn1.BrokerId 
+	    and tn2.InsuredName_Key != tn1.InsuredName_Key 
+	    ORDER BY LEN(tn2.InsuredName_Key) ASC 
+    ) 
+  ,Substringed = 1 
+
+FROM ##temp_ps AS tn1 
+
+WHERE ( 
+    SELECT TOP 1 InsuredName_Key 
+    FROM ##temp_ps AS tn2 
+    WHERE 1=1
+	and tn2.InsuredName_Key = LEFT(tn1.InsuredName_Key, len(tn2.InsuredName_Key)) 
+    --and tn2.BrokerId = tn1.BrokerId 
+    and tn2.InsuredName_Key != tn1.InsuredName_Key 
+	and (tn2.InsuredName_Key like '%(%)%' or tn2.InsuredName_Key like '%[%]%')  -- This is catering for where there could be additional information in the name which needs to be kept to make the InsuredName_Key unique
+																				-- e.g. Gary Peer and Associates Pty Ltd, which has a number of businesses (Carnegie),(Bentleigh),(St Kilda)
+    ORDER BY LEN(tn2.InsuredName_Key) ASC 
+    ) IS NOT NULL; 
+
+
+
+PRINT ''; PRINT getdate(); PRINT 'Put the updated Name Key back over the top of the original Name Key';--•TIMELOG
+--•TIMELOG
+
+update ##temp_ps
+	set 
+--select t1.InsuredName_Key, t1.InsuredName_Key_Substringed, t1.Substringed,
+		InsuredName_Key = t1.InsuredName_Key_Substringed
+from ##temp_ps t1
+where 1=1
+and t1.Substringed = 1
+
+*/
+
+--select * from ##temp_ps --where InsuredName_Key <> InsuredName_Key_Substringed
+PRINT ''; PRINT getdate(); PRINT 'Set [InsuredName_Key] and [Select InsuredName] in Policy Shell table after rationlisation of Insured Nanes]';--•TIMELOG
+--•TIMELOG
+
+update ps
+	set 
+--select mint.*, t.*, ps.Insured,
+		[InsuredName_Key] = mint.[InsuredName_Key],
+		[Select InsuredName] = mint.[Select_InsuredName],
+		[min InsuredName] = mint.[min_InsuredName],
+		[max InsuredName] = mint.[Select_InsuredName]
+
+from
+(select 
+InsuredName_Key,
+max([InsuredName]) as [Select_InsuredName],
+min([InsuredName]) as [min_InsuredName]
+from ##temp_ps
+group by 
+InsuredName_Key) mint
+inner join ##temp_ps t on mint.InsuredName_Key = t.InsuredName_Key
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps on t.InsuredName = ps.[insured Name]
+where 1=1
+--and mint.[Select_InsuredName] <> t.[insuredName]
+
+
+PRINT ''; PRINT getdate(); PRINT 'For Insured Name EXTRAPOLATE TRADING AS INTO A SEPARATE FIELD CALLED DBA (Doing Business As - American)'
+
+PRINT ''; PRINT getdate(); PRINT 'Create temp table-1 for Insured Name and Trading As / dba'
+
+if OBJECT_ID('tempdb..##temp_trading_as_1') is not null drop table ##temp_trading_as_1
+
+select distinct
+[InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+MIN(z.[Offset-1]) as [Offset-1], MIN(z.[Offset-2]) as [Offset-2]
+
+into ##temp_trading_as_1
+from
+(
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' (trading name)',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' (trading name)',  [Select InsuredName])+15 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% (trading name)%'
+and not([Select InsuredName] like '%(Trading Name)%;%') 
+and not([Select InsuredName] like '%(Trading Name)%,%') 
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex('(trading name)',  [Select InsuredName])-1 as [Offset-1],
+Charindex('(trading name)',  [Select InsuredName])+15 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '%(trading name)%'
+and not([Select InsuredName] like '%(Trading Name)%;%') 
+and not([Select InsuredName] like '%(Trading Name)%,%') 
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' trading names :',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' trading names :',  [Select InsuredName])+16 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% trading names :%'
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex('trading as:',  [Select InsuredName])-1 as [Offset-1],
+Charindex('trading as:',  [Select InsuredName])+14 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '%)%trading as:%-%'
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex('trading as:',  [Select InsuredName])-1 as [Offset-1],
+Charindex('trading as:',  [Select InsuredName])+12 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% trading as: %'
+and  not([Select InsuredName] like '%)%trading as:%-%')
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex('trading as -',  [Select InsuredName])-1 as [Offset-1],
+Charindex('trading as -',  [Select InsuredName])+13 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '%Trading As - %'
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' trading name ',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' trading name ',  [Select InsuredName])+14 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% trading name %'
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' trading name:',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' trading name:',  [Select InsuredName])+14 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% trading name:%'
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' (trading as',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' (trading as',  [Select InsuredName])+12 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% (trading as%'
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' T/AS',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' T/AS',  [Select InsuredName])+7 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% T/AS  %'
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' T/As',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' T/As',  [Select InsuredName])+6 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% T/As %'
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex('T/as ',  [Select InsuredName])-1 as [Offset-1],
+Charindex('T/as ',  [Select InsuredName])+5 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '%T/as %'
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' T/A',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' T/A',  [Select InsuredName])+5 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% T/A %'
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' T/As:',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' T/As:',  [Select InsuredName])+7 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% T/As: %'
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' T/As',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' T/As',  [Select InsuredName])+6 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% T/As %'
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' TAs ',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' TAs ',  [Select InsuredName])+5 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% TAs %'
+
+--catrering for Tasmanian Insured's
+and not(ps.[Select InsuredName] like '% Tas Pty%' or ps.[Select InsuredName] like '% Tas Inc%' or ps.[Select InsuredName] like '% Tas 7%' 
+			or ps.[Select InsuredName] like '% Tas of Inc%' or ps.[Select InsuredName] like '% Tas &%' or ps.[Select InsuredName] like '% Tas Limited%')
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' Trading As',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' Trading As',  [Select InsuredName])+11 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% Trading As%'
+and not([Select InsuredName] like '%)%trading as:%-%')
+and not([Select InsuredName] like '%trading as)%')
+and not([Select InsuredName] like '%Trading As - %')
+and not([Select InsuredName] like '% trading as: %')
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' T''As',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' T''As',  [Select InsuredName])+5 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% T''As %'
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' TA ',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' TA ',  [Select InsuredName])+4 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% TA %'
+and not([Select InsuredName] like '% TA &%')
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' t.a ',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' t.a ',  [Select InsuredName])+5 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% t.a %'
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' (t/a) ',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' (t/a) ',  [Select InsuredName])+7 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% (t/a) %'
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' (t/as) ',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' (t/as) ',  [Select InsuredName])+8 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% (t/as) %'
+
+) z
+
+group by [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName]
+order by [InsuredName_Key],[Line of Business] desc
+
+--select * from ##temp_trading_as_1 where [Offset-1] < 1
+
+
+PRINT ''; PRINT getdate(); PRINT 'Create temp table-2 for Insured Name Trading As';
+
+if OBJECT_ID('tempdb..##temp_trading_as_2') is not null drop table ##temp_trading_as_2
+
+select 
+[InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+[Offset-1],
+[Offset-2],
+
+case	when [Offset-1] < 1 then  [Select InsuredName]
+		when right(LEFT( [Select InsuredName],[Offset-1]),1) = ',' then rtrim(ltrim(LEFT( [Select InsuredName],[Offset-1]-1))) 
+			else rtrim(ltrim(LEFT( [Select InsuredName],[Offset-1]))) end as firstpart_InsuredName,
+
+rtrim(ltrim(SUBSTRING( [Select InsuredName],[Offset-2],800))) as dba
+
+into ##temp_trading_as_2
+
+from ##temp_trading_as_1
+where 1=1
+order by [Offset-1]
+
+
+--select * from ##temp_trading_as_1 where policynumber = 'MLW25910216H1 - ML'
+--select * from ##temp_trading_as_2 where policynumber = 'MLW25910216H1 - ML'
+
+
+
+PRINT ''; PRINT getdate(); PRINT 'Update Policy Shell table from temp table-2 for first part insuredname and dba'
+
+update ps
+	set
+--select t2.*,
+		firstpart_InsuredName = t2.firstpart_insuredname,
+		dba = t2.dba
+
+from ##temp_trading_as_2 t2
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps on t2.[PolicyNumber] = ps.[PolicyNumber] 
+
+
+/*
+
+-- TEST DATA BELOW TEST DATA BELOW
+
+delete [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicySummary_Staging]
+
+INSERT INTO [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicySummary_Staging]
+
+SELECT 
+distinct
+[New/Renew]
+	  ,[Insured Name]
+      ,[Broker Name]
+      ,[Broker State]
+      ,[EffDate]
+      ,[ExpDate]
+      ,[Carrier Code]
+      ,[WrittenPremium]
+      ,[Gross Comm Percent]
+      ,[Producer Comm Percent]
+      ,[Indemnity Limit]
+      ,[Line of Business]
+      ,[Policy Section]
+      ,[Excess]
+      ,[Primary / Excess / Coinsurance]
+      ,[Binder]
+      ,[Insurer1Name]
+      ,[Insurer2Name]
+      ,[Insurer3Name]
+      ,[Insurer4Name]
+      ,[Currency]
+      ,[Scheme]
+      ,[Activity Code]
+      ,[UMR]
+      ,[Year Letter]
+      ,[Year Letter New]
+      ,[Underwriter]
+      ,[PolicyNumber]
+      ,[BillType]
+      ,[CovCode]
+	  ,NULL -- Claims
+	  ,[Select InsuredName] -- CardName
+	  ,GETDATE() -- ImportDate
+      ,[RiskWrite RiskId]
+      --,[Broker Email]
+      --,[InsuredName_Key]
+      --,[Select InsuredName]
+      --,[Original InsuredName]
+      --,[min InsuredName]
+      --,[max InsuredName]
+      --,[firstpart_InsuredName]
+      --,[dba]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] a
+  inner join 
+  (SELECT top 20
+      [Policy Number], 
+	  [RiskWrite Policy Number],
+	  [Date Claim Opened]
+  FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_FT_CLAIMS]
+  where 1=1
+  and Status = 'Open'
+  and Type = 'CLAIM'
+  and [Total Incurred] > 0
+  and Claimant <> ''
+  and Product <> 'AH'
+  order by [Date Claim Opened] desc) b on a.PolicyNumber = b.[Policy Number] -- a.[RiskWrite RiskId] = b.[RiskWrite Policy Number] --
+
+  union all
+
+select
+distinct
+[New/Renew]
+	  ,[Insured Name]
+      ,[Broker Name]
+      ,[Broker State]
+      ,[EffDate]
+      ,[ExpDate]
+      ,[Carrier Code]
+      ,[WrittenPremium]
+      ,[Gross Comm Percent]
+      ,[Producer Comm Percent]
+      ,[Indemnity Limit]
+      ,[Line of Business]
+      ,[Policy Section]
+      ,[Excess]
+      ,[Primary / Excess / Coinsurance]
+      ,[Binder]
+      ,[Insurer1Name]
+      ,[Insurer2Name]
+      ,[Insurer3Name]
+      ,[Insurer4Name]
+      ,[Currency]
+      ,[Scheme]
+      ,[Activity Code]
+      ,[UMR]
+      ,[Year Letter]
+      ,[Year Letter New]
+      ,[Underwriter]
+      ,[PolicyNumber]
+      ,[BillType]
+      ,[CovCode]
+	  ,NULL -- Claims
+	  ,[Select InsuredName] -- CardName
+	  ,GETDATE() -- ImportDate
+      ,[RiskWrite RiskId]
+      --,[Broker Email]
+      --,[InsuredName_Key]
+      --,[Select InsuredName]
+      --,[Original InsuredName]
+      --,[min InsuredName]
+      --,[max InsuredName]
+      --,[firstpart_InsuredName]
+      --,[dba]
+--select *
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] a
+  inner join 
+  (SELECT distinct top 20 
+      [Policy Number], 
+	  [RiskWrite Policy Number],
+	  [Date Claim Opened]
+  FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_FT_CLAIMS]
+  where 1=1
+  and Status = 'Open'
+  and Type = 'CLAIM'
+  and [Total Incurred] > 0
+  and Claimant <> ''
+  and Product = 'AH'
+  order by [Date Claim Opened] desc) b on a.PolicyNumber = b.[Policy Number] -- a.[RiskWrite RiskId] = b.[RiskWrite Policy Number] --
+
+
+*/
+-- TEST DATA TEST DATA 
+
+/*
+
+delete [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging]
+
+INSERT INTO [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging]
+select 
+--top 10
+ g.[Firm order date]				as [SalesDate]
+,ps.[Select InsuredName]
+,g.[Year Letter]
+,g.[Policy number1]					as [PartialPolicyNumber]
+,g.[Suffix]
+,g.[Policy Number]
+,g.[Policy from]					as [EffectiveDate]
+,g.[Policy from]					as [ExpirationDate]
+,g.[Activity Code]
+,g.[Límite Orden]					as [Límit]
+,g.[Layer]
+,g.[Order]							as [OrderNumber]
+,g.[Excess]							as [ExcessLimit]
+,g.[Currency]
+,g.[Contract]
+,g.[Assets / Turnover]				as [AssetsTurnover]
+,g.[Client key]						as [BrokerKey]
+,g.[broker name]					as [BrokerName]
+,g.[Brokers % excluding cedant]		as [BrokersPct]
+,g.[Brok# State]					as [BrokerState]
+,g.[Gross 100%]						as [Premium]
+,g.[GST]
+,g.[Brok# Comm#]					as [BrokerCommission]
+,g.[GST on broker comm]				as [GSTOnBrokerCommission]
+,g.[Adm# Fee]						as [AdminFee]
+,g.[GST on adm# fee]				as [GSTOnAdminFee]
+,g.[Total]
+,g.[Adm# Fee]-g.[GST on adm# fee]	as [NetAdminFee]
+
+,v.[AmountDuetoProcessingBroker]	as [TotalDualBrokerage]
+
+,v.[AmountDuetoProcessingBroker]*g.[Insurer1share] as [NetDualBro1]
+,v.[AmountDuetoProcessingBroker]*cast(g.[Insurer2share] as float) as [NetDualBro2]
+,v.[AmountDuetoProcessingBroker]*cast(g.[Insurer3Share]as float) as [NetDualBro3]
+
+,v.[Wording]
+,g.[Status]
+,g.[Country Policy]					as [CountryPolicy]
+,g.[Reniew / New]					as [PolicyType]
+,g.[Type of policy]					as [TypeOfPolicy]
+,g.[Insurer1]						as [Insurer1Name]
+,g.[Insurer2]						as [Insurer2Name]
+,g.[Insurer3]						as [Insurer3Name]
+,g.[Insurer1Share]
+,cast(g.[Insurer2share] as float)	as [Insurer2share]
+,cast(g.[Insurer3Share]as float)	as [Insurer3Share]
+,g.[Income tax 3%]					as [IncomeTax3Percent]
+,ps.[GSTPercent]
+,g.[Office]
+,v.[Cluster Group]					as [ClusterGroup]
+,g.[UW]
+
+,convert(varchar(10),convert(date,v.[ProposalDate],103),120) as [Proposal Date]
+
+,convert(varchar(10),convert(date,g.[Endorse from],103),120) as [Endorse from]
+
+,v.[Retro Date]						as [Retro Date]
+,ps.[Class]
+,g.[Facility risk code]				as [FacilityRiskCode]
+,g.[Scheme]
+,g.[Currency]
+,g.[FixedDIUL]						as [FixedCedeCalc]
+,g.[Number of Insureds]				as [NumberOfInsureds]
+,g.[Year Letter]					as [Year Letter New]
+,g.[MasterPolicyFlag]
+,NULL								as [IncomeTaxInPercentage]
+,g.[Product]
+,ps.[Broker Email]					as [EmailAddress]
+,NULL								as [WithholdingTaxPremium]
+,NULL								as [WithholdingTaxAdmin]
+,NULL								as [WHTaxonAdminFee]
+,cast(g.[Insurer4Share] as float)	as [Insurer4share]
+,g.[Insurer4]						as [Insurer4Name]
+
+,v.[AmountDuetoProcessingBroker]*cast(g.[Insurer4Share] as float) as [NetDualBro4]
+
+,g.[Gross 100%]*g.[Brokers % excluding cedant]		as [BrokergaeOnPremium]
+,g.[Adm# Fee]*g.[Brokers % excluding cedant]		as [BrokerageonAdminFee]
+,g.[GST]											as [GSTOnPremium]
+,g.[CGcommissionLocked]
+,g.[Firm order date]				as [Month]
+,g.[UMR]
+,NULL								as [FSL]
+,g.[VAR]							as [VarCalculation]
+,cast(g.[Ins1_Cede_%] as float)		as [CedeIns1]
+,cast(g.[Ins2_Cede_%] as float)		as [CedeIns2]
+,cast(g.[Ins3_Cede_%] as float)		as [CedeIns3]
+,g.[PRODUCT]						as [Codigo]
+,0									as [DUILPercentage]
+,0									as [DUILCommission]
+,0									as [CGCommPercentage]
+,0									as [CGCommPerItem]
+,g.[Days Insured]					as [DaysInsured]
+,g.[Data_Source]					as [DataSource]
+,NULL								as [CoinsurerShare]
+,g.[Adm# Fee]-g.[GST on adm# fee]	as [NetAdminFee1]
+,0									as [DiffinAdminFee]
+,g.[GST on adm# fee]				as [GSTOnAdminFee1]
+,NULL								as [Verno]
+,g.[NZ Calc]						as [NZCalculation]
+,1									as [CountPolicy]
+,cast(g.[BeachCommssionIns1] as float) as [BeachCommIns1]
+,cast(g.[BeachCommissionIns2] as float)	as [BeachCommIns2]
+,cast(g.[BeachCommissionIns3] as float)	as [BeachCommIns3]
+,cast(g.[BeachCommissionIns4] as float)	as [BeachCommIns4]
+
+,NULL								as [Insurer1BE]
+,NULL								as [Insurer2BE]
+,NULL								as [Insurer3BE]
+,NULL								as [Insurer4BE]
+,NULL								as [AmountDueToHowden]
+,NULL								as [DualBroIns1Percent]
+,NULL								as [DualBroIns2Percent]
+,NULL								as [DualBroIns3Percent]
+,NULL								as [DualBroins4Percent]
+,1									as [Orden]
+,NULL as [FechaDeCobro]
+--,g.[Fecha De Cobro]					as [FechaDeCobro]
+,NULL								as [ClosingReceived]
+,NULL								as [ContractReview]
+,NULL								as [AnyOnePersonLimit]
+,NULL								as [Occupation]
+,g.[EVO]
+,ps.[RefPayToDual]
+,g.[Gross 100%]						as [PaidPremiums]
+,g.[Writeoff]
+,g.[AmtPayableTo]					as [AmountPayableTo]
+,GETDATE()							as [ImportDate]
+,ps.[RiskWrite RiskId]
+
+--select ps.[Policynumber]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[importAUPolicySummary] ips
+
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps on ips.PolicyNumber = ps.PolicyNumber
+inner join (select [Policy number], max([firm order date]) [firm order date] 
+				from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] 
+				where 1=1
+				--and isnull(TransType,'Original') = 'Original'
+				group by [Policy number]) gmax on ps.PolicyNumber = gmax.[Policy number]
+
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] g on ps.PolicyNumber = g.[Policy number] and gmax.[firm order date] = g.[Firm order date]
+
+left join  [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR] v on ps.PolicyNumber = v.[Policy number] and gmax.[firm order date] = v.[Firm order date]
+
+where 1=1
+order by ps.[Policynumber]
+
+-- TEST DATA ABOVE TEST DATA ABOVE
+*/
+
+
+PRINT ''; PRINT getdate(); PRINT 'Finished with ##temp_trading_as_1, drop it'
+if OBJECT_ID('tempdb..##temp_trading_as_1') is not null drop table ##temp_trading_as_1
+
+PRINT ''; PRINT getdate(); PRINT 'Finished with ##temp_trading_as_2, drop it'
+if OBJECT_ID('tempdb..##temp_trading_as_2') is not null drop table ##temp_trading_as_2
+
+
+PRINT ''; PRINT getdate(); PRINT 'Exiting Stored Procedure [DM_AU_CLM_IMS_ETL_POLICY_SHELL]' 
+
+
+END

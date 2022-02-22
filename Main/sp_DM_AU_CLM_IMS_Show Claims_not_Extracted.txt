@@ -1,0 +1,56 @@
+USE [DM_IMS_AU_CLAIMS]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_Show Claims_not_Extracted]    Script Date: 22/02/2022 1:53:59 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER procedure [dbo].[sp_DM_AU_CLM_IMS_Show Claims_not_Extracted] 
+as
+begin
+
+
+ -- BO Claims with FIGTREE Data Source not in FigTree - 81 claims
+ select 'BO Claim with FIGTREE Data Source is not in FigTree, policy not in RiskWrite, not extracted for Migration' as Condition,
+ bc.CLMDATASOU as DataSource, bc.[Claim Number], bc.CLAI_POL_NUM as [Policy Number], bc.Type, bc.Status, bc.FTClmNumber, bc.[Total Incurred]
+  FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc
+  left join [DM_IMS_AU_CLAIMS].[dbo].[Dual_Claims_Staging] ft on bc.[Claim Number] = ft.[Claim Number]
+  left join [RiskWriteApac].[dbo].[Risk] r on bc.CLAI_POL_NUM = r.riskextref
+  where 1=1
+  and bc.CLMDATASOU = 'FigTree'
+  and ft.[Claim Number] is NULL
+  and r.riskid is NULL
+
+  
+union
+   -- BO Claims with CSN and ProClaim Data Source, not Staged for Migration and policy not in RiskWrite - 533 claims
+ select 'BO Claim with CSN and ProClaim Data Source, policy not in RiskWrite, not extracted for Migration' as Condition,
+ bc.CLMDATASOU as DataSource, bc.[Claim Number], bc.CLAI_POL_NUM as [Policy Number], bc.Type, bc.Status, NULL, bc.[Total Incurred]
+  FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc
+  inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bp on bc.CLAI_POL_NUM = bp.[Policy number]
+  left join [DM_IMS_AU_CLAIMS].[dbo].[Dual_Claims_Staging] ft on bc.[Claim Number] = ft.[Claim Number]
+  left join [RiskWriteApac].[dbo].[Risk] r on bc.CLAI_POL_NUM = r.riskextref
+  where 1=1
+  and bc.CLMDATASOU <> 'FigTree'
+  and not((bp.[Policy number] like '% %'))
+  and ft.[Claim Number] is NULL
+  and r.riskid is NULL
+
+
+union
+ select 'BO Claim with CSN and ProClaim Data Source, policy not in RiskWrite, not extracted for Migration' as Condition,
+ bc.CLMDATASOU as DataSource, bc.[Claim Number], bc.CLAI_POL_NUM as [Policy Number], bc.Type, bc.Status, NULL, bc.[Total Incurred]
+  FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bc
+  inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bp on bc.CLAI_POL_NUM = bp.[Policy number]
+  left join [DM_IMS_AU_CLAIMS].[dbo].[Dual_Claims_Staging] ft on bc.[Claim Number] = ft.[Claim Number]
+  left join [RiskWriteApac].[dbo].[Risk] r on r.riskid = LEFT(bp.[Policy number], CHARINDEX(' ', bp.[Policy number]) - 0) 
+  where 1=1
+  and bc.CLMDATASOU <> 'FigTree'
+  and (bp.[Policy number] like '% %')
+  and ft.[Claim Number] is NULL
+  and r.riskid is NULL
+  order by bc.[Claim Number]
+
+
+END

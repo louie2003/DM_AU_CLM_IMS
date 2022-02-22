@@ -1,0 +1,98 @@
+USE [DM_IMS_AU_CLAIMS]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_CLEANUP_BO_DATA]    Script Date: 22/02/2022 1:43:30 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER procedure [dbo].[sp_DM_AU_CLM_IMS_CLEANUP_BO_DATA] 
+as
+begin
+
+
+PRINT ''; PRINT getdate(); PRINT 'Entering Stored Procedure [sp_DM_AU_CLM_IMS_CLEANUP_BO_DATA]' 
+
+PRINT ''; PRINT getdate(); PRINT 'Cleanup data in [DM_IMS_AU_CLAIMS] [dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] table'
+
+UPDATE bcpr
+	set
+--select
+       [Claims Paid]  = case when [Claims Paid] IS NULL then 0.00 else [Claims Paid] end
+      ,[Fees Paid] = case when [Fees Paid] IS NULL then 0.00 else [Fees Paid] end 
+      ,[Claim Reserve] = case when [Claim Reserve] IS NULL then 0.00 else [Claim Reserve] end
+      ,[Fees Reserve] = case when [Fees Reserve] IS NULL then 0.00 else [Fees Reserve] end
+      ,[Fees GST] = case when [Fees GST] IS NULL then 0.00 else [Fees GST] end
+      ,[Claim GST] = case when [Claim GST] IS NULL then 0.00 else [Claim GST] end
+      ,[Total GST] = case when [Total GST] IS NULL then 0.00 else [Total GST] end
+      ,[Ind_Fees] = case when [Ind_Fees] IS NULL then 0.00 else [Ind_Fees] end
+      ,[Ind_Fees_Reserve] = case when [Ind_Fees_Reserve] IS NULL then 0.00 else [Ind_Fees_Reserve] end
+      ,[Insured_Cost] = case when [Insured_Cost] IS NULL then 0.00 else [Insured_Cost] end
+      ,[Insured_Cost_Reserve] = case when [Insured_Cost_Reserve] IS NULL then 0.00 else [Insured_Cost_Reserve] end
+      ,[Def Outstanding] = case when [Def Outstanding] IS NULL then 0.00 else [Def Outstanding] end
+      ,[Cov Outstanding] = case when [Cov Outstanding] IS NULL then 0.00 else [Cov Outstanding] end
+      ,[Adj Outstanding] = case when [Adj Outstanding] IS NULL then 0.00 else [Adj Outstanding] end
+      ,[TPA Outstanding] = case when [TPA Outstanding] IS NULL then 0.00 else [TPA Outstanding] end
+      ,[Recovery Estimate] = case when [Recovery Estimate] IS NULL then 0.00 else [Recovery Estimate] end
+      ,[Def Paid] = case when [Def Paid] IS NULL then 0.00 else [Def Paid] end
+      ,[Cov Paid] = case when [Cov Paid] IS NULL then 0.00 else [Cov Paid] end
+      ,[Adj Paid] = case when [Adj Paid] IS NULL then 0.00 else [Adj Paid] end
+      ,[TPA Paid] = case when [TPA Paid] IS NULL then 0.00 else [TPA Paid] end
+      ,[Recovery Received] = case when [Recovery Received] IS NULL then 0.00 else [Recovery Received] end
+
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES] bcpr
+where 1=1
+
+
+PRINT ''; PRINT getdate(); PRINT 'Cleanup data in [DM_IMS_AU_CLAIMS] [dbo].[DM_AU_CLM_IMS_BO_CLAIMS_COLLECTION_TRANS] table'
+
+UPDATE bcct
+	set
+--select
+       [Fees payment - pol ccy-excl GST] = case when  [Fees payment - pol ccy-excl GST] is NULL then 0.00 else [Fees payment - pol ccy-excl GST] end 
+      ,[Claim payment - pol ccy-excl GST] = case when [Claim payment - pol ccy-excl GST] is NULL then 0.00 else [Claim payment - pol ccy-excl GST] end 
+      ,[FEES_GST] = case when [FEES_GST] is NULL then 0.00 else [FEES_GST] end 
+      ,[CLAIM_GST] = case when [CLAIM_GST] is NULL then 0.00 else [CLAIM_GST] end 
+      ,[Fees_Paid_Ins1] = case when [Fees_Paid_Ins1] is NULL then 0.00 else [Fees_Paid_Ins1] end 
+      ,[Fees_Paid_Ins2] = case when [Fees_Paid_Ins2] is NULL then 0.00 else [Fees_Paid_Ins2] end 
+      ,[Fees_Paid_Ins3] = case when [Fees_Paid_Ins3] is NULL then 0.00 else [Fees_Paid_Ins3] end 
+      ,[Fees_Paid_Ins4] = case when [Fees_Paid_Ins4] is NULL then 0.00 else [Fees_Paid_Ins4] end 
+      ,[Claim_Paid_Ins1] = case when [Claim_Paid_Ins1] is NULL then 0.00 else [Claim_Paid_Ins1] end 
+      ,[Claim_Paid_Ins2] = case when [Claim_Paid_Ins2] is NULL then 0.00 else [Claim_Paid_Ins2] end 
+      ,[Claim_Paid_Ins3] = case when [Claim_Paid_Ins3] is NULL then 0.00 else [Claim_Paid_Ins3] end 
+      ,[Claim_Paid_Ins4] = case when [Claim_Paid_Ins4] is NULL then 0.00 else [Claim_Paid_Ins4] end 
+
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_COLLECTION_TRANS] bcct
+where 1=1
+
+
+PRINT ''; PRINT getdate(); PRINT 'Create full Claim Number from numeric number in [DM_IMS_AU_CLAIMS] [dbo].[DM_AU_CLM_IMS_BO_CLAIMS_REFRESH] table'
+
+update [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMS_REFRESH] 
+	set [Claim Number] = CAST('DI'+format([CLAIM_NUMB], '0000#') as varchar(50))
+
+
+PRINT ''; PRINT getdate(); PRINT 'Create full Claim Number from numeric number in [DM_IMS_AU_CLAIMS] [dbo].[DM_AU_CLM_IMS_BO_CLAIMTRANS_REFRESH] table'
+
+update [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_CLAIMTRANS_REFRESH] 
+	set [Claim Number] = CAST('DI'+format([CLAIM_NUMB], '0000#') as varchar(50))
+
+
+/*
+
+update [DM_IMS_AU_CLAIMS].[dbo].[DUALCLAI1] 
+	set [Claim Number] = CAST('DI'+format([CLAIM_NUMB], '0000#') as varchar(50))
+
+update [DM_IMS_AU_CLAIMS].[dbo].[DUALPAYS1]
+	set [Claim Number] = CAST('DI'+format([CLAIM_NUMB], '0000#') as varchar(50))
+
+*/
+
+
+
+PRINT ''; PRINT getdate(); PRINT 'Exiting Stored Procedure [sp_DM_AU_CLM_IMS_CLEANUP_BO_DATA]' 
+
+
+END
+
+

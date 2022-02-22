@@ -1,0 +1,294 @@
+USE [DM_IMS_AU_CLAIMS]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_Load_Policy_Claim_Test_Data]    Script Date: 22/02/2022 1:53:25 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER procedure [dbo].[sp_DM_AU_CLM_IMS_Load_Policy_Claim_Test_Data] (
+						@servername VARCHAR(50) = '[AUSYDIMSD01]',
+						@dbname VARCHAR(50) = '[DUAL_Reporting]',
+						@Claims_DBName varchar(50) = '[ims_AU_Claim]')
+as
+begin
+
+PRINT ''; PRINT getdate(); PRINT 'Entering stored procedure [sp_DM_AU_CLM_IMS_Load_Policy_Claim_Test_Data] '
+
+PRINT ''; PRINT getdate(); PRINT 'Create test data temp table'
+
+if OBJECT_ID('tempdb..##temp_pols') is not null drop table ##temp_pols
+
+
+--/* This gives us 238 policies
+select top 1 with ties
+   Contract, PolicyNumber
+into ##temp_pols
+from [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging]
+order by row_number() over (partition by Contract order by PolicyNumber desc)
+--*/
+
+/* This gives us 1,200 policies
+select top 1 with ties
+   [BrokerName], PolicyNumber
+into ##temp_pols
+from [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging]
+order by row_number() over (partition by [BrokerName] order by PolicyNumber desc)
+*/
+
+
+/* This gives us 6,000 policies
+select top 1 with ties
+   [EffectiveDate], PolicyNumber
+into ##temp_pols
+from [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging]
+order by row_number() over (partition by [EffectiveDate] order by PolicyNumber desc)
+*/
+
+-- THIS IS THE TEST DATA INSERT INTO [importAUPolicyDetails]
+
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [Dual_Reporting] [importAUPolicyDetails] table'
+
+declare @sql_del_poldet varchar(max)
+
+set @sql_del_poldet = 'DELETE from ' + @ServerName + '.'+ @DBName +'.[dbo].[importAUPolicyDetails]'
+
+exec (@sql_del_poldet)
+
+
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in from [Dual_Reporting] [importAUPolicyDetails] table'
+
+
+declare @sql_insert_poldet varchar(max)
+
+set @sql_insert_poldet = '
+INSERT INTO ' + @ServerName + '.'+ @DBName +'.[dbo].[importAUPolicyDetails]
+SELECT p.*
+FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging] p
+inner join ##temp_pols t on p.PolicyNumber = t.PolicyNumber'
+
+
+exec (@sql_insert_poldet);
+
+
+declare @sql_del_polsum varchar(max)
+
+set @sql_del_polsum = 'DELETE from ' + @ServerName + '.'+ @DBName +'.[dbo].[importAUPolicySummary]'
+
+exec (@sql_del_polsum)
+
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in from [Dual_Reporting] [importAUPolicySummary] table'
+
+
+declare @sql_insert_polsum varchar(max)
+
+set @sql_insert_polsum = '
+INSERT INTO ' + @ServerName + '.'+ @DBName +'.[dbo].[importAUPolicySummary]
+SELECT ps.*
+FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicySummary_Staging] ps
+inner join ' + @ServerName + '.'+ @DBName +'.[dbo].[importAUPolicyDetails] pd on ps.PolicyNumber = pd.PolicyNumber COLLATE Latin1_General_CI_AS'
+
+
+exec (@sql_insert_polsum)
+
+
+-- CLAIMS
+
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [IMS] [Dual_FigTreeClaims] table'
+
+declare @sql_del_claim varchar(max)
+
+set @sql_del_claim = 'DELETE from ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaims]'
+
+exec (@sql_del_claim)
+
+--/*
+
+-- Create Claim details table which will be used to import data into IMS
+-- Note, the table name of [IMS] [Dual_FigTreeClaims] is so that we don't have to modify the North American software which refers to this table name...the table contains data from FigTree and BackOffice
+
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in [IMS] [Dual_FigTreeClaims] which will be imported into IMS'
+
+
+declare @sql_insert_claim varchar(max)
+
+set @sql_insert_claim = '
+INSERT INTO ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaims]
+select 
+ [Claim Number]
+,[FTCClaimNumber]
+,[Incident Number]
+,cs.[Policy Number]
+,[RiskWrite RiskId] 
+,[Year Letter]
+,[Claimant]
+,cs.[Contract]
+,[Payee]
+,[Status]
+,[Type]
+,[Claim Summary]
+,[Claim Code]
+,[Notes]
+,[Claim Handler]
+,[EML]
+,[Date of Loss]
+,[Date Claim Notified]
+,[Date Claim Opened]
+,[Date Claim Closed]
+,[Capacity Provider Referral]
+,[Capacity Provider Referral]
+,[Amount Claimed]
+,[Claim Reserve]
+,[Fee Reserve]
+,[Claim GST]
+,[Fees GST]
+,[Claim Paid]
+,[Fees Paid]
+,[Denied Indemnity]
+,[Currency]
+,[Activity Code]
+,[Total GST]
+,[Excess]
+,[Broker Name]
+,[Broker email address]
+,[Scheme]
+,[UMR]
+,[Product]
+,[Claims Count]
+,[Claim Payment - pol ccy-excl GST]
+,[Fees Payment - pol ccy-excl GST]
+,[Total Incurred]
+,[Date/Reminder_T/Actioned]
+,[Panel Appointed][Appointed For]
+,[Appointed For]
+,[COVPaid]
+,[COVReserve]
+,[COVGST]
+,[DEFPaid]
+,[DEFReserve]
+,[DEFGST]
+,[Coverage / Indemnity Position]
+,left([Reason for Declinature],255)
+,[Watch List Flag]
+,[Reference]
+,[CLMDataSource]
+,[DEFRecovery]
+,[DEFRecoveryGST]
+,[COVRecovery]
+,[COVRecoveryGST]
+,[SETRecovery]
+,[SETRecoveryGST]
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+from [DM_IMS_AU_CLAIMS].[dbo].[Dual_Claims_Staging] cs
+inner join ##temp_pols t on cs.[Policy Number] = t.[PolicyNumber]'
+
+exec (@sql_insert_claim)
+
+
+-- CLAIM TRANSACTIONS
+
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [IMS] [Dual_FigTreeClaimTransactions] table'
+
+declare @sql_del_claim_trans varchar(max)
+
+set @sql_del_claim_trans = 'DELETE from ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaimTransactions]'
+
+exec (@sql_del_claim_trans)
+
+--/*
+
+-- Create Claim details table which will be used to import data into IMS
+-- Note, the table name of [IMS] [Dual_FigTreeClaims] is so that we don't have to modify the North American software which refers to this table name...the table contains data from FigTree and BackOffice
+
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in [IMS] [Dual_FigTreeClaimTransactions] which will be imported into IMS'
+
+
+declare @sql_insert_claim_trans varchar(max)
+
+set @sql_insert_claim_trans = '
+INSERT INTO ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaimTransactions]
+select 
+ cts.[Claim Number]
+,cts.[Policy Number]
+,cts.[RiskWrite RiskId] 
+,cts.[Incident Number]
+,cts.[Payment Reason]
+,cts.[Pay Date]
+,cts.[Expense Code]
+,cts.[Expense Code Desc]
+--,cts.[Trans Description]
+,cts.[Claim Payment]
+,cts.[COV Payment]
+,cts.[DEF Payment]
+,cts.[Claims GST] 
+,cts.[COV GST]
+,cts.[DEF GST]
+,cts.[Claims Paid]
+,cts.[Fees Paid]
+,cts.[DEF Recovery]
+,cts.[DEF Recovery GST] 
+,cts.[COV Recovery]
+,cts.[COV Recovery GST]
+,cts.[SET Recovery]
+,cts.[SET Recovery GST] 
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+,NULL
+from [DM_IMS_AU_CLAIMS].[dbo].[Dual_ClaimTransactions_Staging] cts
+inner join ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaims] cs on cts.[Claim Number] = cs.[Claim Number] COLLATE Latin1_General_CI_AS'
+
+
+exec (@sql_insert_claim_trans)
+
+-- CLAIM NOTES
+
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [IMS] [Dual_FigTreeClaim_Notes] table'
+
+declare @sql_del_claim_notes varchar(max)
+
+set @sql_del_claim_notes = 'DELETE from ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaim_Notes]'
+
+exec (@sql_del_claim_Notes)
+
+--/*
+
+-- Create Claim details table which will be used to import data into IMS
+-- Note, the table name of [IMS] [Dual_FigTreeClaims] is so that we don't have to modify the North American software which refers to this table name...the table contains data from FigTree and BackOffice
+
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in [IMS] [Dual_FigTreeClaim_Notes] which will be imported into IMS'
+
+
+declare @sql_insert_claim_Notes varchar(max)
+
+set @sql_insert_claim_Notes = '
+INSERT INTO ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaim_Notes]
+select cn.*
+from [DM_IMS_AU_CLAIMS].[dbo].[Dual_FigTreeClaim_Notes] cn
+inner join ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaims] cs on cs.[Claim Number] = cn.[Claim Number] COLLATE Latin1_General_CI_AS'
+
+
+exec (@sql_insert_claim_Notes)
+
+
+PRINT ''; PRINT getdate(); PRINT 'Exiting stored procedure [sp_DM_AU_CLM_IMS_Load_Policy_Claim_Test_Data]' 
+
+END
+
