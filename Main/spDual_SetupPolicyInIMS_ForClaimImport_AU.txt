@@ -1,0 +1,689 @@
+USE [IMS]
+GO
+/****** Object:  StoredProcedure [dbo].[spDual_SetupPolicyInIMS_ForClaimImport_AU]    Script Date: 23/02/2022 2:31:41 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+/**
+
+-- 21/02/2022 - Cloned from NZ version [spDual_SetupPolicyInIMS_ForClaimImport] by C Vlahos for Australia Policy Shell and Claims data migration to IMS
+
+Notes: (2021-11-08 Lee)
+	Notes on the Logic for how this Proc works and the expected Datafill in the Dual_ContractLineMapping_ForClaimImport table.
+	The Import Details (from Dual_Reporting.dbo.importAUPolicyDetails) hold the "Contract" Value.
+	This "Contract" value is then used to pull info from the mapping table (IMS.dbo.Dual_ContractLineMapping_ForClaimImport).
+	If the table value "IsNZPackage" is set, the hard-coded Default package values (CompanyLoc/CompanyLine/Line) are used.
+	So, this flag really means "UseDefaults".  Based on discussions with Steve, it's really better to use the values 
+	from the mapping table.  So we set all the new package contacts added in Nov 2021 (the <<Contact>> 2 values) to NOT 
+	use Defaults (IsNZPackage=0) and to put the correct values into the mapping table (i.e. the Bowood values as of now).
+
+Updates to mapping for added package Contacts: Forcing all to have IsNZPackage=FALSE (i.e. UseDefaults=FALSE), 
+    and all set to Bowood Package values for NZ.
+begin transaction updmap; rollback transaction updmap; commit transaction updmap;
+--xxUPDATE map SET IsNZPackage = 0, LineGuid='45874F25-BBEC-4EFE-96A6-D94E24790834'/*NZ Package*/, CompanyLineGuid='27F4E495-F28D-4585-9ACE-A11819A69299'/*Bowood-NZ Package-NZ*/ FROM Dual_ContractLineMapping_ForClaimImport map WHERE map.[Contract] LIKE '% 2' AND map.CompanyLineGuid<>'27F4E495-F28D-4585-9ACE-A11819A69299';
+
+**Manual runs - 11/8/2021:
+SELECT DISTINCT BrokerKey, BrokerName FROM Dual_Reporting.dbo.importAUPolicyDetails WHERE BrokerKey IN ('BIZN', 'AONW', 'AONR', 'BIZN'); 
+SELECT ProducerLocationID, LocationCode, [Name], [State], * FROM IMS.dbo.tblProducerLocations WHERE LocationCode IN ('BIZN', 'AONW', 'AONR', 'BIZN'); 
+SELECT ProducerLocationID, LocationCode, [Name], [State], * FROM IMS.dbo.tblProducerLocations WHERE [Name] IN ('AON Perth', 'AON Wellington')
+
+SELECT [Contract], BrokerKey, * FROM Dual_Reporting.dbo.importAUPolicyDetails 
+  WHERE PolicyNumber IN ('NI/24300/000/21/M', 'ITB/01346/000/21/M', 'NI/23958/000/21/M', 'PB/00825/000/21/M'); 
+
+EXEC IMS.dbo.spDual_SetupPolicyInIMS_ForClaimImport @PolicyNumberToLoad = 'NI/24300/000/21/M:Wealthpoint Limited'; 
+EXEC IMS.dbo.spDual_SetupPolicyInIMS_ForClaimImport @PolicyNumberToLoad = 'ITB/01346/000/21/M:Tes Limited'; 
+EXEC IMS.dbo.spDual_SetupPolicyInIMS_ForClaimImport @PolicyNumberToLoad = 'NI/23958/000/21/M:CEAS Inc'; 
+EXEC IMS.dbo.spDual_SetupPolicyInIMS_ForClaimImport @PolicyNumberToLoad = 'PB/00825/000/21/M:Stuart Mayes'; 
+**/
+ALTER PROCEDURE [dbo].[spDual_SetupPolicyInIMS_ForClaimImport_AU]
+	@PolicyNumberToLoad varchar(150)
+AS
+BEGIN
+
+
+
+	--DEBUG declare @PolicyNumberToLoad varchar(150) = 'NI/24300/000/21/M:Wealthpoint Limited';
+	--DEBUG declare @PolicyNumberToLoad varchar(150) = 'NI/23958/000/21/M:CEAS Inc';
+
+	DECLARE @MsgToReturn varchar(max)
+	SET @MsgToReturn = ''
+
+	--Constants--------------------------------------------------------------------------------------------------------------------
+	DECLARE @AddedByUser uniqueidentifier
+	SET @AddedByUser = '90188B2F-42C7-4667-9EAA-4DB0ADE7469B'  -- Claim Load
+	DECLARE @IssuedAndBoundByUser int
+	SELECT @IssuedAndBoundByUser = UserID FROM tblUsers WHERE UserGUID = @AddedByUser
+	DECLARE @OfficeGUID uniqueidentifier 
+	--SET @OfficeGUID = 'F20F93A4-32E5-4F3F-B631-40F801AB58C1' --DUAL New Zealand Limited
+	SET @OfficeGUID = 'BBC9E4C3-C3EF-4649-8E8B-942E60470350' --DUAL Australia Limited - AU - CV
+
+	--This is for the NZ Package
+	DECLARE @CompanyLocationGUID uniqueidentifier
+	--(2021-11-08 Lee) Updated to use Pkg info that went into effect Feb 2021 per Joe.
+	--SET @CompanyLocationGUID = '2BEE118E-F2C5-4B6E-9454-13A9E188EC0C'	--CompanyLocationName: Lloyds of London
+	SET @CompanyLocationGUID = 'AC171436-3855-4FCB-B530-F9A611791202'	--CompanyLocationName: Lloyds of London - Bowood
+	DECLARE @LineGUID uniqueidentifier
+	SET @LineGUID = '45874F25-BBEC-4EFE-96A6-D94E24790834'				--LineName: NZ Package
+	DECLARE @CompanyLineGUID uniqueidentifier
+	--(2021-11-08 Lee) Updated to use Pkg info that went into effect Feb 2021 per Joe.
+	--SET @CompanyLineGUID='01159FFD-7E53-4BCD-96F1-95D596136D34'		--CompanyLine: Lloyds of London via Guy Carpenter - NZ Package - NZ
+	SET @CompanyLineGUID='27F4E495-F28D-4585-9ACE-A11819A69299'			--CompanyLine: Lloyds of London - Bowood via Bowood - NZ Package - NZ
+
+	SET @PolicyNumberToLoad=LTRIM(RTRIM(@PolicyNumberToLoad))
+	
+	DECLARE @preblocking int
+	SET @preblocking=1
+
+	WHILE @preblocking > 0
+		BEGIN
+			SELECT @preblocking=COUNT(*) 
+			FROM master.sys.dm_exec_requests
+			WHERE blocking_session_id <> 0
+			
+			IF @preblocking > 0 
+			BEGIN
+				raiserror('Something is pre-blocking wait 30 seconds', 0, 1) with nowait;
+				WAITFOR DELAY '00:00:30' --30 SECONDS
+			END
+		END	
+
+
+	BEGIN TRANSACTION
+	BEGIN TRY		
+			--RAISERROR('CANNOT CONTINUE: The claim loader is currently down. We are working on the issue and will have it back up as soon as possible.', 16, 1)
+
+			DECLARE @importCardName nvarchar(400)
+			SET @importCardName=null
+
+			IF CHARINDEX(':', @PolicyNumberToLoad) > 0
+				BEGIN
+					SET @importCardName=LTRIM(RTRIM(SUBSTRING(@PolicyNumberToLoad, CHARINDEX(':', @PolicyNumberToLoad)+1, LEN(@PolicyNumberToLoad)-CHARINDEX(':', @PolicyNumberToLoad))))
+					SET @PolicyNumberToLoad=LTRIM(RTRIM(SUBSTRING(@PolicyNumberToLoad, 1, CHARINDEX(':', @PolicyNumberToLoad)-1)))
+					if @importCardName = '' SET @importCardName=null
+				END
+
+			DECLARE @ExistsInIMS int
+			SELECT @ExistsInIMS=COUNT(*) FROM tblQuotes WHERE PolicyNumber=@PolicyNumberToLoad
+
+			IF @ExistsInIMS > 0
+				BEGIN
+					SET @MsgToReturn = 'CANNOT CONTINUE: Policy ' + @PolicyNumberToLoad + ' already exists in IMS.'
+					RAISERROR('CANNOT CONTINUE: Policy already exists in IMS.', 16, 1)
+				END
+
+			--Only keep history of the last run.
+			DELETE FROM Dual_SetUpHistory_ForClaimImport WHERE PolicyNumberToLoad=@PolicyNumberToLoad
+			DELETE FROM Dual_PolicyData_ForClaimImport WHERE PolicyNumber=@PolicyNumberToLoad
+			INSERT INTO Dual_PolicyData_ForClaimImport (InsuredName, PolicyNumber, EffectiveDate, ExpirationDate, Limit, ExcessLimit, Currency, Contract, BrokerKey, BrokerName, BrokerPct, [Brok  State], Premium, PolicyType, BasePolicyNumber, OrigBindYearlyPolicyNumber)
+			SELECT		InsuredName,
+						PolicyNumber,
+						EffectiveDate,
+						ExpirationDate,
+						Límit,
+						ExcessLimit,
+						Currency,
+						Contract,
+						BrokerKey,
+						BrokerName,
+						BrokersPct,
+						BrokerState,
+						Premium,
+						PolicyType,
+						dbo.fnDual_GetFigTreeBasePolicyNumber(@PolicyNumberToLoad),
+						dbo.fnDual_GetFigTreeOrigBindYearlyPolicyNumber(@PolicyNumberToLoad)
+			FROM		DUAL_Reporting.dbo.importAUPolicyDetails
+			WHERE		PolicyNumber=@PolicyNumberToLoad
+
+			INSERT INTO [dbo].[Dual_SetupHistory_ForClaimImport] (PolicyNumberToLoad, [TimeStamp]) 
+			SELECT		@PolicyNumberToLoad, getdate()
+
+			DECLARE @Id int
+			SET @Id=@@Identity
+
+			DECLARE @ExistsPolicyData int
+			SELECT @ExistsPolicyData=COUNT(*) FROM Dual_PolicyData_ForClaimImport WHERE PolicyNumber=@PolicyNumberToLoad
+
+			IF @ExistsPolicyData = 0
+				BEGIN
+					SET @MsgToReturn = 'CANNOT CONTINUE: Legacy policy details not found for ' + @PolicyNumberToLoad + '.'
+					RAISERROR('Policy data not found.', 16, 1)
+				END
+
+			--CardName is longer set on summary table. It's in a side table.
+			DECLARE @preCardName nvarchar(400)
+			SET @preCardName=null
+			if @importCardName IS NOT NULL AND @importCardName <> ''
+			BEGIN
+				SET @preCardName=@importCardName
+			END
+			--SELECT @preCardName=LTRIM(RTRIM(CardName)) FROM DUAL_Reporting.dbo.importAUPolicySummary WHERE PolicyNumber=@PolicyNumberToLoad
+
+			UPDATE		Dual_PolicyData_ForClaimImport 
+			SET			OrigEffDate=(SELECT EffectiveDate FROM DUAL_Reporting.dbo.importAUPolicyDetails WHERE PolicyNumber=dbo.fnDual_GetFigTreeOrigBindYearlyPolicyNumber(@PolicyNumberToLoad)),
+						ActivityCode=(LTRIM(RTRIM((SELECT ActivityCode FROM DUAL_Reporting.dbo.importAUPolicyDetails WHERE PolicyNumber=@PolicyNumberToLoad)))),
+						OrigPolicyType=(LTRIM(RTRIM((SELECT PolicyType FROM DUAL_Reporting.dbo.importAUPolicyDetails WHERE PolicyNumber=dbo.fnDual_GetFigTreeOrigBindYearlyPolicyNumber(@PolicyNumberToLoad))))),
+						CardName=LTRIM(RTRIM(@preCardName))
+			WHERE		PolicyNumber=@PolicyNumberToLoad
+
+			DECLARE @preCardName2 nvarchar(400)
+			SELECT @preCardName2=LTRIM(RTRIM(CardName)) FROM DUAL_Reporting.dbo.importAUPolicyCardNames WHERE PolicyNumber=@PolicyNumberToLoad
+		
+			IF @preCardName IS NULL OR LTRIM(RTRIM(@preCardName))='#N/A' OR LTRIM(RTRIM(@preCardName))=''
+				BEGIN
+					IF @preCardName2 IS NULL OR LTRIM(RTRIM(@preCardName2))='#N/A' OR LTRIM(RTRIM(@preCardName2))=''
+						BEGIN
+							SET @MsgToReturn = 'CANNOT CONTINUE: Legacy policy data has no card name.'
+							RAISERROR('Legacy policy data has no card name.', 16, 1)
+						END
+					ELSE
+						BEGIN
+							SET @preCardName=@preCardName2
+
+							UPDATE		Dual_PolicyData_ForClaimImport 
+							SET			CardName=LTRIM(RTRIM(@preCardName2))
+							WHERE		PolicyNumber=@PolicyNumberToLoad
+						END
+
+				END
+
+			UPDATE		Dual_SetupHistory_ForClaimImport 
+			SET			CardName=LTRIM(RTRIM(@preCardName))
+			WHERE		PolicyNumberToLoad=@PolicyNumberToLoad
+
+			--(2021-11-09 Lee) Added BrokerState into the check for Producer.  Some BrokerKeys are not unique between NZ/AU.
+			DECLARE @ExistsProducer int; 
+			DECLARE @BrokerKey varchar(50), @BrokerState varchar(50); 
+			SELECT @BrokerKey=BrokerKey, @BrokerState=[Brok  State] FROM Dual_PolicyData_ForClaimImport WHERE PolicyNumber=@PolicyNumberToLoad;
+
+			IF ((SELECT COUNT(1) Cnt FROM tblProducerLocations WHERE LocationCode=@BrokerKey) > 1) 
+				AND ((SELECT COUNT(1) Cnt FROM tblProducerLocations WHERE LocationCode=@BrokerKey AND [State] = @BrokerState) = 1)
+			BEGIN 
+				SELECT @ExistsProducer=COUNT(*) FROM tblProducerLocations WHERE LocationCode=@BrokerKey; 
+			END
+			ELSE 
+			BEGIN 
+				SELECT @ExistsProducer=COUNT(*) FROM tblProducerLocations WHERE LocationCode=@BrokerKey; 
+				SET @BrokerState = NULL; --** NULL here used in logic below to know if State is used or not. 
+			END 
+			PRINT 'BrokerKey: ' + @BrokerKey; PRINT 'BrokerState: ' + @BrokerState;
+
+			IF @ExistsProducer = 0
+				BEGIN
+					DECLARE @ThisError1 varchar(150)
+					SET @ThisError1 = 'CANNOT CONTINUE: Producer(' + @BrokerKey + ') not found. This producer must exist in IMS with the location code set to the broker key.'
+					SET @MsgToReturn=@ThisError1
+					RAISERROR(@ThisError1, 16, 1)
+				END
+
+			DECLARE @DataId int
+			SELECT @DataId=MAX(Id) FROM Dual_PolicyData_ForClaimImport WHERE PolicyNumber=@PolicyNumberToLoad
+
+			--Create Insured-----------------------------------------------------------------------------------------------------------------------------
+			DECLARE @InsuredName varchar(500)
+			SET @InsuredName = NULL
+			-- @BasePolicyNumber varchar(50)
+			--SET @BasePolicyNumber = NULL
+			DECLARE @PolicyType nvarchar(10)
+			SET @PolicyType = NULL
+			DECLARE @CardName nvarchar(400)
+			SELECT @InsuredName = InsuredName, @PolicyType=OrigPolicyType, @CardName=CardName FROM Dual_PolicyData_ForClaimImport WHERE Id=@DataId
+			DECLARE @InsuredID int
+			SET @InsuredID = NULL
+			DECLARE @InsuredLocationGUID uniqueidentifier 
+			SET @InsuredLocationGUID = NULL
+
+			--UPDATE Dual_SetupHistory_ForClaimImport SET BasePolicyNumber=@BasePolicyNumber WHERE Id=@Id
+	
+			SELECT		@InsuredID=InsuredID,
+						@InsuredLocationGUID=InsuredLocationGUID
+			FROM		Dual_SetupHistory_ForClaimImport
+			WHERE		Success=1
+						--AND BasePolicyNumber=(SELECT BasePolicyNumber FROM Dual_PolicyData_ForClaimImport WHERE PolicyNumber=@PolicyNumberToLoad)
+						AND CardName=@preCardName
+						
+			IF @InsuredID IS NULL
+				BEGIN
+					INSERT INTO tblInsureds (BusinessTypeID, PolicyName, CorporationName, Name, StatusID, Soundex, StrippedName, StrippedPolicyName, NumSubmissions)
+					SELECT		1, 
+								LTRIM(RTRIM(@CardName)),
+								LTRIM(RTRIM(@CardName)),
+								LTRIM(RTRIM(@CardName)),
+								1,
+								dbo.SoundexAlphaFunction(LTRIM(RTRIM(@CardName))),
+								REPLACE(LTRIM(RTRIM(@CardName)), ' ', ''),
+								REPLACE(LTRIM(RTRIM(@CardName)), ' ', ''),
+								1
+					FROM		Dual_PolicyData_ForClaimImport p
+					WHERE		Id=@DataId
+
+					UPDATE		Dual_SetupHistory_ForClaimImport
+					SET			InsuredID=@@Identity
+					WHERE		Id=@Id
+				END
+			ELSE
+				BEGIN
+					----UPDATE InsuredName
+					--DECLARE @UpdatedInsuredName varchar(500)
+					--SET @UpdatedInsuredName = NULL
+
+					--SELECT @UpdatedInsuredName=InsuredName FROM Dual_PolicyData_ForClaimImport WHERE Id=@DataId
+			
+					--UPDATE		tblInsureds
+					--SET				PolicyName=LTRIM(RTRIM(@UpdatedInsuredName)),
+					--				CorporationName=LTRIM(RTRIM(@UpdatedInsuredName)),
+					--				Name=LTRIM(RTRIM(@UpdatedInsuredName)),
+					--				Soundex=dbo.SoundexAlphaFunction(LTRIM(RTRIM(@UpdatedInsuredName))),
+					--				StrippedName=REPLACE(LTRIM(RTRIM(@UpdatedInsuredName)), ' ', ''),
+					--				StrippedPolicyName=REPLACE(LTRIM(RTRIM(@UpdatedInsuredName)), ' ', '')
+					--WHERE		InsuredID=@InsuredID
+									
+					UPDATE		Dual_SetupHistory_ForClaimImport
+					SET			InsuredID=@InsuredID
+					WHERE		Id=@Id
+
+					UPDATE		Dual_SetupHistory_ForClaimImport
+					SET			InsuredLocationGUID=@InsuredLocationGUID
+					WHERE		Id=@Id
+				END
+
+				--Insured Location---------------------------------------------------------------------------------------------------------------------------
+				IF @InsuredLocationGUID IS NULL
+					BEGIN
+						INSERT INTO tblInsuredLocations (DeliveryMethodID, LocationTypeID, Address1, Address2, City, State, ZipCode, ISOCountryCode, Name, InsuredGuid)
+						SELECT		1,
+									1,
+									RTRIM(LTRIM('123 Pitt Street')),	-- AU CV
+									NULL,
+									RTRIM(LTRIM('Sydney')),				-- AU CV
+									RTRIM(LTRIM('NS')),					-- AU CV
+									RTRIM(LTRIM('2000')),				-- AU CV
+									'AU' AS ISOCountryCode, 
+									'Mailing Location' AS Name,			-- AU CV
+									i.InsuredGuid
+						FROM		Dual_SetupHistory_ForClaimImport s
+						INNER JOIN	tblInsureds i ON i.InsuredID=s.InsuredID
+						WHERE		Id=@Id
+
+						UPDATE		Dual_SetupHistory_ForClaimImport
+						SET			InsuredLocationGUID=(SELECT TOP 1 l.InsuredLocationGUID FROM tblInsuredLocations l 
+														INNER JOIN tblInsureds i ON i.InsuredGuid=l.InsuredGuid 
+														INNER JOIN Dual_SetupHistory_ForClaimImport s ON s.InsuredId = i.InsuredId WHERE s.Id=@Id)
+						WHERE		Id=@Id
+					END
+
+					--Submission------------------------------------------------------------------------------------------------------------------------------------------
+					--(2021-11-09 Lee) Added BrokerState into the check for Producer.  Some BrokerKeys are not unique between NZ/AU.
+					DECLARE @ProducerContactID int; 
+					DECLARE @ProducerLocationGUID uniqueidentifier; 
+					IF @BrokerState IS NOT NULL 
+					BEGIN 
+						SELECT @ProducerLocationGUID=ProducerLocationGUID FROM tblProducerLocations l INNER JOIN Dual_PolicyData_ForClaimImport p ON p.BrokerKey=l.LocationCode AND p.[Brok  State] = l.[State] WHERE p.Id=@DataId; 
+					END
+					ELSE 
+					BEGIN 
+						SELECT @ProducerLocationGUID=ProducerLocationGUID FROM tblProducerLocations l INNER JOIN Dual_PolicyData_ForClaimImport p ON p.BrokerKey=l.LocationCode WHERE p.Id=@DataId; 
+					END 
+					PRINT 'ProducerLocGuid:' + CAST(@ProducerLocationGUID AS VARCHAR(50));
+					
+					SELECT @ProducerContactID=ProducerContactID FROM tblProducerContacts pc WHERE pc.ProducerLocationGuid = @ProducerLocationGUID
+					IF @ProducerContactID IS NULL
+						BEGIN
+							INSERT INTO tblProducerContacts (ProducerLocationGUID, FName, LName , StatusID, DeliveryMethodID)
+							SELECT @ProducerLocationGUID, 'First Name', 'Producer', 1, 1
+							SET @ProducerContactID=@@IDENTITY
+						END
+
+					INSERT INTO tblSubmissionGroup (ProducerLocationGuid, ProducerContactID, InsuredGuid, DateSubmitted, AddedByUserGuid)
+					SELECT		@ProducerLocationGUID,
+								@ProducerContactID,
+								i.InsuredGuid,
+								getdate(),
+								@AddedByUser
+					FROM		Dual_SetupHistory_ForClaimImport s
+					INNER JOIN	tblInsureds i ON i.InsuredID=s.InsuredID
+					WHERE		Id=@Id
+					
+					UPDATE		Dual_SetupHistory_ForClaimImport
+					SET			SubmissionGroupID=@@identity
+					WHERE		Id=@Id
+
+					--tblQuote---------------------------------------------------------------------------------------------------------------------------------------
+					DECLARE @contract varchar(250)
+					SELECT @contract=[Contract] FROM Dual_PolicyData_ForClaimImport WHERE Id=@DataId 
+
+					--(2021-11-08 Lee) Ranaming @IsNZPackage.  Really means UseDefaults. This is coupled with changes inteh 
+					--					Mapping table values to put Package values in the table vs relying on Default values in proc.
+					DECLARE @tmpCompanyLineGUID uniqueidentifier
+					DECLARE @tmpLineGUID uniqueidentifier
+					DECLARE @IsNZPackage_ActuallyMeansUseDefaults bit
+					DECLARE @LineName varchar(150)
+					
+					SELECT @tmpCompanyLineGUID=CompanyLineGUID, @tmpLineGUID=LineGUID, @IsNZPackage_ActuallyMeansUseDefaults=IsNZPackage, @LineName=LineName FROM Dual_ContractLineMapping_ForClaimImport WHERE [Contract]=@contract
+
+					IF @IsNZPackage_ActuallyMeansUseDefaults=0
+						BEGIN
+							SET @CompanyLineGUID=@tmpCompanyLineGUID
+							SET @LineGUID=@tmpLineGUID
+							SELECT @CompanyLocationGUID=CompanyLocationGUID FROM tblCompanyLines WHERE CompanyLineGUID=@CompanyLineGUID
+						END
+
+					raiserror('Quote', 0, 1) with nowait;
+					INSERT INTO tblQuotes (
+						SubmissionGroupGuid,
+						QuotingLocationGuid,
+						IssuingLocationGuid,
+						CompanyLocationGuid,
+						ControlGuid,
+						LineGuid,
+						QuoteStatusID, 
+						EffectiveDate, 
+						ExpirationDate, 
+						PolicyTypeID, 
+						StateID,
+						ProducerContactGuid,
+						UnderwriterUserGuid, 
+						PolicyNumber, 
+						BillingTypeID,
+						DateIssued, 
+						IssuedByUserID,
+						DateBound,
+						BoundByUserID, 
+						InsuredDBA, 
+						InsuredFEIN, 
+						InsuredSSN, 
+						InsuredBusinessTypeID, 
+						InsuredPolicyName, 
+						InsuredCorporationName, 
+						InsuredAddress1, 
+						InsuredAddress2, 
+						InsuredCity, 
+						InsuredState, 
+						InsuredCounty, 
+						InsuredISOCountryCode, 
+						InsuredZipCode, 
+						ProducerLocationID, 
+						ProducerName, 
+						ProducerLocationName, 
+						ProducerAddress1, 
+						ProducerAddress2, 
+						ProducerCity, 
+						ProducerCounty, 
+						ProducerState, 
+						ProducerISOCountryCode, 
+						ProducerZipCode, 
+						ProducerPhone, 
+						ProducerFax, 
+						CompanyLineGuid, 
+						CostCenterID, 
+						InstallmentBillingQuoteOptionID, 
+						Auditable, 
+						ControlNo,
+						AccountNumber--,
+						--SIC_Code
+					)
+					SELECT		s.SubmissionGroupGuid,
+								@OfficeGUID AS QuotingLocationGuid, 
+								@OfficeGUID AS IssuingLocationGuid, 
+								@CompanyLocationGUID,
+								NEWID(),
+								@LineGUID,
+								1 as QuoteStatusID,
+								CAST(p.EffectiveDate as datetime),
+								CAST(p.ExpirationDate as datetime),
+								CASE p.OrigPolicyType WHEN 'R' THEN 2 ELSE 1 END,
+								'AU',														-- AU CV
+								(SELECT TOP 1 ProducerContactGUID FROM tblProducerContacts pc WHERE pc.ProducerLocationGuid = @ProducerLocationGUID),
+								@AddedByUser,
+								p.PolicyNumber,
+								3,
+								CAST(p.EffectiveDate as datetime) AS DateIssued, 
+								@IssuedAndBoundByUser AS IssuedByUserID, 
+								getdate() AS DateBound,
+								@IssuedAndBoundByUser AS BoundByUserID, 
+								NULL AS InsuredDBA, 
+								NULL AS InsuredFEIN, 
+								NULL AS InsuredSSN, 
+								i.BusinessTypeID, 
+								p.InsuredName, 
+								p.InsuredName, 
+								il.Address1, 
+								il.Address2, 
+								il.City, 
+								il.State, 
+								'' AS InsuredCounty, 
+								il.ISOCountryCode, 
+								il.ZipCode, 
+								pl.ProducerLocationID, 
+								pr.ProducerName, 
+								pl.Name AS ProdLocationName, 
+								pl.Address1 AS ProdAddress, 
+								pl.Address2 AS ProdAddress2, 
+								pl.City AS ProdCity, 
+								pl.County, 
+								pl.State AS ProdState, 
+								pl.ISOCountryCode AS ProdCountry, 
+								pl.ZipCode AS ProdZip, 
+								pl.Phone, 
+								pl.Fax, 
+								@CompanyLineGUID, 
+								4 AS CostCenterID, 
+								NULL AS QQ, 
+								0 AS audit, 
+								ISNULL((SELECT MAX(ControlNo)+1 FROM dbo.tblQuotes), 1),
+								'AULegacyClaimShell'--,											-- AU CV
+								--sc.SIC_Code
+					FROM		Dual_SetupHistory_ForClaimImport ss
+					INNER JOIN	Dual_PolicyData_ForClaimImport p ON ss.PolicyNumberToLoad=p.PolicyNumber AND p.Id=@DataId
+					INNER JOIN	tblSubmissionGroup s ON s.SubmissionGroupID=ss.SubmissionGroupID
+					INNER JOIN	tblProducerLocations pl ON pl.ProducerLocationGuid=s.ProducerLocationGuid
+					INNER JOIN	tblProducers pr ON pr.ProducerGuid=pl.ProducerGuid
+					INNER JOIN	tblInsureds i ON i.InsuredID=ss.InsuredID
+					INNER JOIN	tblInsuredLocations il ON il.InsuredGuid=i.InsuredGuid
+					--LEFT JOIN	lstSIC_Codes sc ON sc.SIC_Code=p.ActivityCode
+					WHERE		ss.Id=@Id
+
+					DECLARE @QuoteID int
+					SET @QuoteID=@@identity
+
+					UPDATE		Dual_SetupHistory_ForClaimImport
+					SET			QuoteID=@QuoteID
+					WHERE		Id=@Id;
+
+					UPDATE		Dual_SetupHistory_ForClaimImport
+					SET			ControlNo=(SELECT ControlNo FROM tblQuotes WHERE QuoteId=@QuoteID)
+					WHERE		Id=@Id;
+
+					--Quote Details/Option/Premium---------------------------------------------------------------------------------------------------------------------
+					raiserror('Quote Details', 0, 1) with nowait;
+					--(2021-11-08 Lee) Fixing issue in script, should not be using @tmp here.
+					--IF @tmpLineGUID IS NULL
+					IF @LineGUID IS NULL
+						BEGIN
+							DECLARE @ThisError2 varchar(150)
+							SET @ThisError2 = 'CANNOT CONTINUE: No line found in IMS for contract(' + @contract + ').'
+							SET @MsgToReturn = @ThisError2
+							RAISERROR(@ThisError2, 16, 1)
+						END
+
+					INSERT INTO tblQuoteDetails(QuoteGuid, CompanyLineGuid, CompanyContactGuid, IntermediaryContactGuid, CompanyCommission, ProducerCommission, RaterID, TermsOfPayment)
+					SELECT		q.QuoteGuid,
+								--(2021-11-08 Lee) Fixing issue in script, should not be using @tmp here.
+								--@tmpCompanyLineGUID,
+								@CompanyLineGUID,
+								CASE WHEN EXISTS(SELECT * FROM tblCompanyLocations WHERE tblCompanyLocations.CompanyLocationGuid = @CompanyLocationGUID AND tblCompanyLocations.IntermediaryGuid IS NULL)
+									THEN (SELECT TOP 1 CompanyContactGuid FROM tblCompanyContacts WHERE CompanyLocationGuid=@CompanyLocationGUID)
+									ELSE NULL
+								END,
+								CASE WHEN EXISTS(SELECT * FROM tblCompanyLocations WHERE tblCompanyLocations.CompanyLocationGuid = @CompanyLocationGUID AND tblCompanyLocations.IntermediaryGuid IS NOT NULL)
+									THEN (SELECT TOP 1 tblIntermediaryContacts.IntermediaryContactGuid 
+											FROM tblCompanyLocations
+											INNER JOIN tblIntermediaries ON tblCompanyLocations.IntermediaryGuid = tblIntermediaries.IntermediaryGuid
+											INNER JOIN tblIntermediaryContacts ON tblIntermediaries.IntermediaryID = tblIntermediaryContacts.IntermediaryID
+											WHERE tblCompanyLocations.CompanyLocationGUID = @CompanyLocationGUID)
+									ELSE NULL
+								END,
+								.40,
+								.25,
+								0,
+								30 as TermsOfPayment
+					FROM		Dual_SetupHistory_ForClaimImport  p
+					INNER JOIN	tblQuotes q ON q.QuoteID=p.QuoteID
+					WHERE		Id=@Id;
+
+					INSERT INTO tblQuoteOptions (QuoteGUID, LineGUID, CompanyLocationID, DateCreated, Quote, Bound, CompanyInstallmentID)
+					SELECT		q.QuoteGuid,
+								--(2021-11-08 Lee) Fixing issue in script, should not be using @tmp here.
+								--@tmpLineGUID,
+								@LineGUID,
+								3,
+								getdate(),
+								1,
+								1,
+								NULL
+					FROM		Dual_SetupHistory_ForClaimImport p
+					INNER JOIN	tblQuotes q ON q.QuoteID=p.QuoteID
+					WHERE		Id=@Id
+
+					----Premium---------------------------------------------------------------------------------------------------------------------
+					DECLARE @Premium money
+					SELECT @Premium=Premium FROM Dual_PolicyData_ForClaimImport WHERE Id=@DataId
+					IF @Premium < 0
+						BEGIN
+							SET @Premium=0
+						END
+
+					INSERT INTO tblQuoteOptionPremiums (QuoteOptionGuid, ChargeCode, OfficeID, Premium, AnnualPremium, Commissionable)
+					SELECT		qo.QuoteOptionGuid,
+								pc.ChargeCode,
+								(SELECT OfficeID FROM tblClientOffices WHERE OfficeGUID=@OfficeGUID),
+								@Premium,
+								@Premium,
+								1 as Commissionable
+					FROM		Dual_SetupHistory_ForClaimImport p
+					INNER JOIN	tblQuotes q ON q.QuoteID=p.QuoteID
+					INNER JOIN	tblQuoteOptions qo ON q.QuoteGUID = qo.QuoteGUID
+					INNER JOIN	tblFin_PolicyCharges pc ON q.StateID = pc.StateID
+					WHERE		p.Id=@Id
+								AND pc.ChargeType='p'
+								AND pc.ChargeName='Premium'
+
+					----Generic Rater---------------------------------------------------------------------------------------------------------------------
+					INSERT INTO tblQuoteOptionGeneric (QuoteOptionGuid, EffectiveDate, UserOverrideFactor, ChargeCode, OfficeID, Premium, Added, EndorsementCalcType)
+					SELECT		qo.QuoteOptionGuid,
+								q.EffectiveDate,
+								1,
+								pc.ChargeCode,
+								(SELECT OfficeID FROM tblClientOffices WHERE OfficeGUID=@OfficeGUID),
+								@Premium,
+								getdate(),
+								'F'
+					FROM		Dual_SetupHistory_ForClaimImport p
+					INNER JOIN	tblQuotes q ON q.QuoteID=p.QuoteID
+					INNER JOIN	tblQuoteOptions qo ON q.QuoteGUID = qo.QuoteGUID
+					INNER JOIN	tblFin_PolicyCharges pc ON q.StateID = pc.StateID
+					WHERE		p.Id=@Id
+								AND pc.ChargeType='p'
+								AND pc.ChargeName='Premium'
+
+					INSERT INTO tblGenericLimits(QuoteID, Limit, Deductible)
+					SELECT @QuoteID, (SELECT ISNULL(Limit, '0') as Limit FROM [dbo].[Dual_PolicyData_ForClaimImport] WHERE Id=@DataId), (SELECT ExcessLimit FROM [dbo].[Dual_PolicyData_ForClaimImport] WHERE Id=@DataId)
+
+					----Bind-------------------------------------------------------------------------------------------------------------------------------
+					raiserror('Bind and create invoices', 0, 1) with nowait;
+					DECLARE @QuoteGuid uniqueidentifier
+					SELECT @QuoteGuid=QuoteGuid FROM tblQuotes WHERE QuoteID=@QuoteID
+					
+					DECLARE @BillingCode char(5)
+					DECLARE @UnderwriterGuid uniqueidentifier
+					DECLARE @Effective datetime
+					
+					UPDATE		tblQuotes 
+					SET			QuoteStatusID = 3 
+					WHERE		QuoteID = @QuoteID
+	                
+					UPDATE		tblQuoteOptions 
+					SET			Bound = 1 
+					WHERE		QuoteGuid = @QuoteGuid
+	                
+					DECLARE @SetControlNo int
+					SELECT @SetControlNo=ControlNo FROM tblQuotes WHERE QuoteID=@QuoteID
+					
+					IF @SetControlNo=-1
+						BEGIN
+							RAISERROR('Duplicate ControlNo found.', 16, 1)
+							--THROW 1, 'Duplicate ControlNo found.', 1;
+						END
+
+					UPDATE [dbo].[Dual_SetupHistory_ForClaimImport] SET Success=1, ErrorMessage=null WHERE Id=@Id
+
+					DECLARE @OrigEffDate datetime
+					SELECT @OrigEffDate=OrigEffDate FROM Dual_PolicyData_ForClaimImport WHERE Id=@DataId
+
+					DECLARE @progId int 
+					SET @progId=dbo.fnDual_GetProgramID(@LineName, @OrigEffDate, @contract)
+
+					if @progId IS NOT NULL
+						BEGIN
+							UPDATE tblQuoteDetails SET ProgramID=@progId WHERE QuoteGuid=@QuoteGuid
+						END 
+					ELSE
+						BEGIN
+							UPDATE tblQuoteDetails SET ProgramID=NULL WHERE QuoteGuid=@QuoteGuid
+						END
+
+					IF @PolicyNumberToLoad = 'NE/00015/000/11/C'
+						UPDATE tblQuoteDetails SET ProgramID=26 WHERE QuoteGuid=@QuoteGuid
+					ELSE IF @PolicyNumberToLoad = 'NG/16629/000/17/I'
+						UPDATE tblQuoteDetails SET ProgramID=43 WHERE QuoteGuid=@QuoteGuid
+					ELSE IF @PolicyNumberToLoad IN ('NI/02542/000/12/D', 'NP/95041/000/13/Z')
+						UPDATE tblQuoteDetails SET ProgramID=44 WHERE QuoteGuid=@QuoteGuid
+
+					UPDATE tblQuotes SET NAICSCode = a.ActivityCode
+					FROM tblQuotes q INNER JOIN (
+					SELECT		h.PolicyNumberToLoad,
+								h.ControlNo,
+								h.QuoteID,
+								d.ActivityCode
+					FROM		Dual_SetupHistory_ForClaimImport h 
+					INNER JOIN	DUAL_Reporting.dbo.importAUPolicyDetails d ON d.PolicyNumber=h.PolicyNumberToLoad
+					WHERE		h.Success=1
+								and h.PolicyNumberToLoad=@PolicyNumberToLoad
+					) a ON a.QuoteID=q.QuoteID AND q.QuoteID=@QuoteID
+					WHERE NAICSCode is null
+
+					COMMIT TRAN
+					if @@trancount<>0 COMMIT TRAN
+					--DEBUG ROLLBACK TRAN; if @@trancount<>0 ROLLBACK TRAN;
+
+					SET @MsgToReturn = 'ControlNo ' + CAST(@SetControlNo as varchar(150)) + ' sucessfully setup in IMS for ' + @PolicyNumberToLoad + '.'
+		END TRY
+		BEGIN CATCH
+			PRINT ERROR_MESSAGE()
+
+			ROLLBACK TRAN
+			if @@trancount<>0 ROLLBACK TRAN
+
+			DECLARE @AlreadyLoadedSucessfully int
+			SELECT @AlreadyLoadedSucessfully=COUNT(*) FROM Dual_SetupHistory_ForClaimImport WHERE PolicyNumberToLoad=@PolicyNumberToLoad AND Success=1
+
+			DECLARE @ExistsInIMS2 int
+			SELECT @ExistsInIMS2=COUNT(*) FROM tblQuotes WHERE PolicyNumber=@PolicyNumberToLoad
+
+			IF @AlreadyLoadedSucessfully = 0 AND @ExistsInIMS2 = 0
+				BEGIN
+					DELETE FROM [Dual_SetupHistory_ForClaimImport] WHERE PolicyNumberToLoad=@PolicyNumberToLoad AND Success=0
+					INSERT INTO [dbo].[Dual_SetupHistory_ForClaimImport] (PolicyNumberToLoad, [TimeStamp], Success, ErrorMessage) 
+					SELECT		@PolicyNumberToLoad, getdate(), 0, ERROR_MESSAGE()
+				END
+			
+			IF @MsgToReturn = ''
+				BEGIN
+					SET @MsgToReturn = 'ERROR: An unknown error has occured. Please try again.'
+				END
+		END CATCH
+
+		SELECT @MsgToReturn AS MessageToDisplay
+END
+

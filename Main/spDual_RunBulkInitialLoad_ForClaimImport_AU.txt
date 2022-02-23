@@ -1,0 +1,49 @@
+USE [IMS]
+GO
+/****** Object:  StoredProcedure [dbo].[spDual_RunBulkInitialLoad_ForClaimImport_AU]    Script Date: 23/02/2022 5:07:57 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+-- 21/02/2022 - Cloned from NZ version [spDual_RunBulkInitialLoad_ForClaimImport] by C Vlahos for Australia Policy Shell and Claims data migration to IMS
+
+ALTER PROCEDURE [dbo].[spDual_RunBulkInitialLoad_ForClaimImport_AU]
+AS
+BEGIN
+
+	IF OBJECT_ID('tempdb..#PolsToCreate') IS NOT NULL BEGIN DROP TABLE #PolsToCreate END
+
+	SELECT		DISTINCT LTRIM(RTRIM([Policy Number])) as PolicyNumber
+	INTO		#PolsToCreate
+	FROM		Dual_FigTreeClaims_AU
+	WHERE		LTRIM(RTRIM([Policy Number]))<>''
+				AND LTRIM(RTRIM([Policy Number])) NOT IN (SELECT PolicyNumberToLoad FROM [dbo].[Dual_SetupHistory_ForClaimImport_AU] WHERE [Success]=1)
+	ORDER BY LTRIM(RTRIM([Policy Number]))
+
+	DECLARE @PolicyNumber varchar(150)
+
+	IF OBJECT_ID('Cur') IS NOT NULL 
+	BEGIN 
+		CLOSE Cur 
+		DEALLOCATE Cur
+	END
+	
+	DECLARE Cur Cursor FAST_FORWARD FORWARD_ONLY
+	FOR SELECT PolicyNumber FROM #PolsToCreate ORDER BY PolicyNumber
+
+	SELECT * FROM #PolsToCreate
+
+	OPEN Cur
+	FETCH Cur INTO @PolicyNumber
+
+	WHILE @@Fetch_status=0
+		BEGIN
+			EXEC spDual_SetupPolicyInIMS_ForClaimImport_AU @PolicyNumber
+			
+			FETCH Cur INTO @PolicyNumber
+		END
+
+	CLOSE Cur 
+	DEALLOCATE Cur
+END
