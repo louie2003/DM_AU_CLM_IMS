@@ -1,6 +1,6 @@
 USE [IMS]
 GO
-/****** Object:  StoredProcedure [dbo].[spDual_SetupPolicyInIMS_ForClaimImport_AU]    Script Date: 23/02/2022 2:31:41 PM ******/
+/****** Object:  StoredProcedure [dbo].[spDual_SetupPolicyInIMS_ForClaimImport_AU]    Script Date: 23/02/2022 6:12:47 PM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -114,9 +114,9 @@ BEGIN
 				END
 
 			--Only keep history of the last run.
-			DELETE FROM Dual_SetUpHistory_ForClaimImport WHERE PolicyNumberToLoad=@PolicyNumberToLoad
-			DELETE FROM Dual_PolicyData_ForClaimImport WHERE PolicyNumber=@PolicyNumberToLoad
-			INSERT INTO Dual_PolicyData_ForClaimImport (InsuredName, PolicyNumber, EffectiveDate, ExpirationDate, Limit, ExcessLimit, Currency, Contract, BrokerKey, BrokerName, BrokerPct, [Brok  State], Premium, PolicyType, BasePolicyNumber, OrigBindYearlyPolicyNumber)
+			DELETE FROM Dual_SetupHistory_ForClaimImport_AU WHERE PolicyNumberToLoad=@PolicyNumberToLoad
+			DELETE FROM Dual_PolicyData_ForClaimImport_AU WHERE PolicyNumber=@PolicyNumberToLoad
+			INSERT INTO Dual_PolicyData_ForClaimImport_AU (InsuredName, PolicyNumber, EffectiveDate, ExpirationDate, Limit, ExcessLimit, Currency, Contract, BrokerKey, BrokerName, BrokerPct, [Brok  State], Premium, PolicyType, BasePolicyNumber, OrigBindYearlyPolicyNumber)
 			SELECT		InsuredName,
 						PolicyNumber,
 						EffectiveDate,
@@ -136,14 +136,14 @@ BEGIN
 			FROM		DUAL_Reporting.dbo.importAUPolicyDetails
 			WHERE		PolicyNumber=@PolicyNumberToLoad
 
-			INSERT INTO [dbo].[Dual_SetupHistory_ForClaimImport] (PolicyNumberToLoad, [TimeStamp]) 
+			INSERT INTO [dbo].[Dual_SetupHistory_ForClaimImport_AU] (PolicyNumberToLoad, [TimeStamp]) 
 			SELECT		@PolicyNumberToLoad, getdate()
 
 			DECLARE @Id int
 			SET @Id=@@Identity
 
 			DECLARE @ExistsPolicyData int
-			SELECT @ExistsPolicyData=COUNT(*) FROM Dual_PolicyData_ForClaimImport WHERE PolicyNumber=@PolicyNumberToLoad
+			SELECT @ExistsPolicyData=COUNT(*) FROM Dual_PolicyData_ForClaimImport_AU WHERE PolicyNumber=@PolicyNumberToLoad
 
 			IF @ExistsPolicyData = 0
 				BEGIN
@@ -160,7 +160,7 @@ BEGIN
 			END
 			--SELECT @preCardName=LTRIM(RTRIM(CardName)) FROM DUAL_Reporting.dbo.importAUPolicySummary WHERE PolicyNumber=@PolicyNumberToLoad
 
-			UPDATE		Dual_PolicyData_ForClaimImport 
+			UPDATE		Dual_PolicyData_ForClaimImport_AU 
 			SET			OrigEffDate=(SELECT EffectiveDate FROM DUAL_Reporting.dbo.importAUPolicyDetails WHERE PolicyNumber=dbo.fnDual_GetFigTreeOrigBindYearlyPolicyNumber(@PolicyNumberToLoad)),
 						ActivityCode=(LTRIM(RTRIM((SELECT ActivityCode FROM DUAL_Reporting.dbo.importAUPolicyDetails WHERE PolicyNumber=@PolicyNumberToLoad)))),
 						OrigPolicyType=(LTRIM(RTRIM((SELECT PolicyType FROM DUAL_Reporting.dbo.importAUPolicyDetails WHERE PolicyNumber=dbo.fnDual_GetFigTreeOrigBindYearlyPolicyNumber(@PolicyNumberToLoad))))),
@@ -181,21 +181,21 @@ BEGIN
 						BEGIN
 							SET @preCardName=@preCardName2
 
-							UPDATE		Dual_PolicyData_ForClaimImport 
+							UPDATE		Dual_PolicyData_ForClaimImport_AU 
 							SET			CardName=LTRIM(RTRIM(@preCardName2))
 							WHERE		PolicyNumber=@PolicyNumberToLoad
 						END
 
 				END
 
-			UPDATE		Dual_SetupHistory_ForClaimImport 
+			UPDATE		Dual_SetupHistory_ForClaimImport_AU 
 			SET			CardName=LTRIM(RTRIM(@preCardName))
 			WHERE		PolicyNumberToLoad=@PolicyNumberToLoad
 
 			--(2021-11-09 Lee) Added BrokerState into the check for Producer.  Some BrokerKeys are not unique between NZ/AU.
 			DECLARE @ExistsProducer int; 
 			DECLARE @BrokerKey varchar(50), @BrokerState varchar(50); 
-			SELECT @BrokerKey=BrokerKey, @BrokerState=[Brok  State] FROM Dual_PolicyData_ForClaimImport WHERE PolicyNumber=@PolicyNumberToLoad;
+			SELECT @BrokerKey=BrokerKey, @BrokerState=[Brok  State] FROM Dual_PolicyData_ForClaimImport_AU WHERE PolicyNumber=@PolicyNumberToLoad;
 
 			IF ((SELECT COUNT(1) Cnt FROM tblProducerLocations WHERE LocationCode=@BrokerKey) > 1) 
 				AND ((SELECT COUNT(1) Cnt FROM tblProducerLocations WHERE LocationCode=@BrokerKey AND [State] = @BrokerState) = 1)
@@ -218,7 +218,7 @@ BEGIN
 				END
 
 			DECLARE @DataId int
-			SELECT @DataId=MAX(Id) FROM Dual_PolicyData_ForClaimImport WHERE PolicyNumber=@PolicyNumberToLoad
+			SELECT @DataId=MAX(Id) FROM Dual_PolicyData_ForClaimImport_AU WHERE PolicyNumber=@PolicyNumberToLoad
 
 			--Create Insured-----------------------------------------------------------------------------------------------------------------------------
 			DECLARE @InsuredName varchar(500)
@@ -228,19 +228,19 @@ BEGIN
 			DECLARE @PolicyType nvarchar(10)
 			SET @PolicyType = NULL
 			DECLARE @CardName nvarchar(400)
-			SELECT @InsuredName = InsuredName, @PolicyType=OrigPolicyType, @CardName=CardName FROM Dual_PolicyData_ForClaimImport WHERE Id=@DataId
+			SELECT @InsuredName = InsuredName, @PolicyType=OrigPolicyType, @CardName=CardName FROM Dual_PolicyData_ForClaimImport_AU WHERE Id=@DataId
 			DECLARE @InsuredID int
 			SET @InsuredID = NULL
 			DECLARE @InsuredLocationGUID uniqueidentifier 
 			SET @InsuredLocationGUID = NULL
 
-			--UPDATE Dual_SetupHistory_ForClaimImport SET BasePolicyNumber=@BasePolicyNumber WHERE Id=@Id
+			--UPDATE Dual_SetupHistory_ForClaimImport_AU SET BasePolicyNumber=@BasePolicyNumber WHERE Id=@Id
 	
 			SELECT		@InsuredID=InsuredID,
 						@InsuredLocationGUID=InsuredLocationGUID
-			FROM		Dual_SetupHistory_ForClaimImport
+			FROM		Dual_SetupHistory_ForClaimImport_AU
 			WHERE		Success=1
-						--AND BasePolicyNumber=(SELECT BasePolicyNumber FROM Dual_PolicyData_ForClaimImport WHERE PolicyNumber=@PolicyNumberToLoad)
+						--AND BasePolicyNumber=(SELECT BasePolicyNumber FROM Dual_PolicyData_ForClaimImport_AU WHERE PolicyNumber=@PolicyNumberToLoad)
 						AND CardName=@preCardName
 						
 			IF @InsuredID IS NULL
@@ -255,10 +255,10 @@ BEGIN
 								REPLACE(LTRIM(RTRIM(@CardName)), ' ', ''),
 								REPLACE(LTRIM(RTRIM(@CardName)), ' ', ''),
 								1
-					FROM		Dual_PolicyData_ForClaimImport p
+					FROM		Dual_PolicyData_ForClaimImport_AU p
 					WHERE		Id=@DataId
 
-					UPDATE		Dual_SetupHistory_ForClaimImport
+					UPDATE		Dual_SetupHistory_ForClaimImport_AU
 					SET			InsuredID=@@Identity
 					WHERE		Id=@Id
 				END
@@ -268,7 +268,7 @@ BEGIN
 					--DECLARE @UpdatedInsuredName varchar(500)
 					--SET @UpdatedInsuredName = NULL
 
-					--SELECT @UpdatedInsuredName=InsuredName FROM Dual_PolicyData_ForClaimImport WHERE Id=@DataId
+					--SELECT @UpdatedInsuredName=InsuredName FROM Dual_PolicyData_ForClaimImport_AU WHERE Id=@DataId
 			
 					--UPDATE		tblInsureds
 					--SET				PolicyName=LTRIM(RTRIM(@UpdatedInsuredName)),
@@ -279,11 +279,11 @@ BEGIN
 					--				StrippedPolicyName=REPLACE(LTRIM(RTRIM(@UpdatedInsuredName)), ' ', '')
 					--WHERE		InsuredID=@InsuredID
 									
-					UPDATE		Dual_SetupHistory_ForClaimImport
+					UPDATE		Dual_SetupHistory_ForClaimImport_AU
 					SET			InsuredID=@InsuredID
 					WHERE		Id=@Id
 
-					UPDATE		Dual_SetupHistory_ForClaimImport
+					UPDATE		Dual_SetupHistory_ForClaimImport_AU
 					SET			InsuredLocationGUID=@InsuredLocationGUID
 					WHERE		Id=@Id
 				END
@@ -302,14 +302,14 @@ BEGIN
 									'AU' AS ISOCountryCode, 
 									'Mailing Location' AS Name,			-- AU CV
 									i.InsuredGuid
-						FROM		Dual_SetupHistory_ForClaimImport s
+						FROM		Dual_SetupHistory_ForClaimImport_AU s
 						INNER JOIN	tblInsureds i ON i.InsuredID=s.InsuredID
 						WHERE		Id=@Id
 
-						UPDATE		Dual_SetupHistory_ForClaimImport
+						UPDATE		Dual_SetupHistory_ForClaimImport_AU
 						SET			InsuredLocationGUID=(SELECT TOP 1 l.InsuredLocationGUID FROM tblInsuredLocations l 
 														INNER JOIN tblInsureds i ON i.InsuredGuid=l.InsuredGuid 
-														INNER JOIN Dual_SetupHistory_ForClaimImport s ON s.InsuredId = i.InsuredId WHERE s.Id=@Id)
+														INNER JOIN Dual_SetupHistory_ForClaimImport_AU s ON s.InsuredId = i.InsuredId WHERE s.Id=@Id)
 						WHERE		Id=@Id
 					END
 
@@ -319,11 +319,11 @@ BEGIN
 					DECLARE @ProducerLocationGUID uniqueidentifier; 
 					IF @BrokerState IS NOT NULL 
 					BEGIN 
-						SELECT @ProducerLocationGUID=ProducerLocationGUID FROM tblProducerLocations l INNER JOIN Dual_PolicyData_ForClaimImport p ON p.BrokerKey=l.LocationCode AND p.[Brok  State] = l.[State] WHERE p.Id=@DataId; 
+						SELECT @ProducerLocationGUID=ProducerLocationGUID FROM tblProducerLocations l INNER JOIN Dual_PolicyData_ForClaimImport_AU p ON p.BrokerKey=l.LocationCode AND p.[Brok  State] = l.[State] WHERE p.Id=@DataId; 
 					END
 					ELSE 
 					BEGIN 
-						SELECT @ProducerLocationGUID=ProducerLocationGUID FROM tblProducerLocations l INNER JOIN Dual_PolicyData_ForClaimImport p ON p.BrokerKey=l.LocationCode WHERE p.Id=@DataId; 
+						SELECT @ProducerLocationGUID=ProducerLocationGUID FROM tblProducerLocations l INNER JOIN Dual_PolicyData_ForClaimImport_AU p ON p.BrokerKey=l.LocationCode WHERE p.Id=@DataId; 
 					END 
 					PRINT 'ProducerLocGuid:' + CAST(@ProducerLocationGUID AS VARCHAR(50));
 					
@@ -341,17 +341,17 @@ BEGIN
 								i.InsuredGuid,
 								getdate(),
 								@AddedByUser
-					FROM		Dual_SetupHistory_ForClaimImport s
+					FROM		Dual_SetupHistory_ForClaimImport_AU s
 					INNER JOIN	tblInsureds i ON i.InsuredID=s.InsuredID
 					WHERE		Id=@Id
 					
-					UPDATE		Dual_SetupHistory_ForClaimImport
+					UPDATE		Dual_SetupHistory_ForClaimImport_AU
 					SET			SubmissionGroupID=@@identity
 					WHERE		Id=@Id
 
 					--tblQuote---------------------------------------------------------------------------------------------------------------------------------------
 					DECLARE @contract varchar(250)
-					SELECT @contract=[Contract] FROM Dual_PolicyData_ForClaimImport WHERE Id=@DataId 
+					SELECT @contract=[Contract] FROM Dual_PolicyData_ForClaimImport_AU WHERE Id=@DataId 
 
 					--(2021-11-08 Lee) Ranaming @IsNZPackage.  Really means UseDefaults. This is coupled with changes inteh 
 					--					Mapping table values to put Package values in the table vs relying on Default values in proc.
@@ -474,8 +474,8 @@ BEGIN
 								ISNULL((SELECT MAX(ControlNo)+1 FROM dbo.tblQuotes), 1),
 								'AULegacyClaimShell'--,											-- AU CV
 								--sc.SIC_Code
-					FROM		Dual_SetupHistory_ForClaimImport ss
-					INNER JOIN	Dual_PolicyData_ForClaimImport p ON ss.PolicyNumberToLoad=p.PolicyNumber AND p.Id=@DataId
+					FROM		Dual_SetupHistory_ForClaimImport_AU ss
+					INNER JOIN	Dual_PolicyData_ForClaimImport_AU p ON ss.PolicyNumberToLoad=p.PolicyNumber AND p.Id=@DataId
 					INNER JOIN	tblSubmissionGroup s ON s.SubmissionGroupID=ss.SubmissionGroupID
 					INNER JOIN	tblProducerLocations pl ON pl.ProducerLocationGuid=s.ProducerLocationGuid
 					INNER JOIN	tblProducers pr ON pr.ProducerGuid=pl.ProducerGuid
@@ -487,11 +487,11 @@ BEGIN
 					DECLARE @QuoteID int
 					SET @QuoteID=@@identity
 
-					UPDATE		Dual_SetupHistory_ForClaimImport
+					UPDATE		Dual_SetupHistory_ForClaimImport_AU
 					SET			QuoteID=@QuoteID
 					WHERE		Id=@Id;
 
-					UPDATE		Dual_SetupHistory_ForClaimImport
+					UPDATE		Dual_SetupHistory_ForClaimImport_AU
 					SET			ControlNo=(SELECT ControlNo FROM tblQuotes WHERE QuoteId=@QuoteID)
 					WHERE		Id=@Id;
 
@@ -528,7 +528,7 @@ BEGIN
 								.25,
 								0,
 								30 as TermsOfPayment
-					FROM		Dual_SetupHistory_ForClaimImport  p
+					FROM		Dual_SetupHistory_ForClaimImport_AU  p
 					INNER JOIN	tblQuotes q ON q.QuoteID=p.QuoteID
 					WHERE		Id=@Id;
 
@@ -542,13 +542,13 @@ BEGIN
 								1,
 								1,
 								NULL
-					FROM		Dual_SetupHistory_ForClaimImport p
+					FROM		Dual_SetupHistory_ForClaimImport_AU p
 					INNER JOIN	tblQuotes q ON q.QuoteID=p.QuoteID
 					WHERE		Id=@Id
 
 					----Premium---------------------------------------------------------------------------------------------------------------------
 					DECLARE @Premium money
-					SELECT @Premium=Premium FROM Dual_PolicyData_ForClaimImport WHERE Id=@DataId
+					SELECT @Premium=Premium FROM Dual_PolicyData_ForClaimImport_AU WHERE Id=@DataId
 					IF @Premium < 0
 						BEGIN
 							SET @Premium=0
@@ -561,7 +561,7 @@ BEGIN
 								@Premium,
 								@Premium,
 								1 as Commissionable
-					FROM		Dual_SetupHistory_ForClaimImport p
+					FROM		Dual_SetupHistory_ForClaimImport_AU p
 					INNER JOIN	tblQuotes q ON q.QuoteID=p.QuoteID
 					INNER JOIN	tblQuoteOptions qo ON q.QuoteGUID = qo.QuoteGUID
 					INNER JOIN	tblFin_PolicyCharges pc ON q.StateID = pc.StateID
@@ -579,7 +579,7 @@ BEGIN
 								@Premium,
 								getdate(),
 								'F'
-					FROM		Dual_SetupHistory_ForClaimImport p
+					FROM		Dual_SetupHistory_ForClaimImport_AU p
 					INNER JOIN	tblQuotes q ON q.QuoteID=p.QuoteID
 					INNER JOIN	tblQuoteOptions qo ON q.QuoteGUID = qo.QuoteGUID
 					INNER JOIN	tblFin_PolicyCharges pc ON q.StateID = pc.StateID
@@ -588,7 +588,7 @@ BEGIN
 								AND pc.ChargeName='Premium'
 
 					INSERT INTO tblGenericLimits(QuoteID, Limit, Deductible)
-					SELECT @QuoteID, (SELECT ISNULL(Limit, '0') as Limit FROM [dbo].[Dual_PolicyData_ForClaimImport] WHERE Id=@DataId), (SELECT ExcessLimit FROM [dbo].[Dual_PolicyData_ForClaimImport] WHERE Id=@DataId)
+					SELECT @QuoteID, (SELECT ISNULL(Limit, '0') as Limit FROM [dbo].[Dual_PolicyData_ForClaimImport_AU] WHERE Id=@DataId), (SELECT ExcessLimit FROM [dbo].[Dual_PolicyData_ForClaimImport_AU] WHERE Id=@DataId)
 
 					----Bind-------------------------------------------------------------------------------------------------------------------------------
 					raiserror('Bind and create invoices', 0, 1) with nowait;
@@ -616,10 +616,10 @@ BEGIN
 							--THROW 1, 'Duplicate ControlNo found.', 1;
 						END
 
-					UPDATE [dbo].[Dual_SetupHistory_ForClaimImport] SET Success=1, ErrorMessage=null WHERE Id=@Id
+					UPDATE [dbo].[Dual_SetupHistory_ForClaimImport_AU] SET Success=1, ErrorMessage=null WHERE Id=@Id
 
 					DECLARE @OrigEffDate datetime
-					SELECT @OrigEffDate=OrigEffDate FROM Dual_PolicyData_ForClaimImport WHERE Id=@DataId
+					SELECT @OrigEffDate=OrigEffDate FROM Dual_PolicyData_ForClaimImport_AU WHERE Id=@DataId
 
 					DECLARE @progId int 
 					SET @progId=dbo.fnDual_GetProgramID(@LineName, @OrigEffDate, @contract)
@@ -646,7 +646,7 @@ BEGIN
 								h.ControlNo,
 								h.QuoteID,
 								d.ActivityCode
-					FROM		Dual_SetupHistory_ForClaimImport h 
+					FROM		Dual_SetupHistory_ForClaimImport_AU h 
 					INNER JOIN	DUAL_Reporting.dbo.importAUPolicyDetails d ON d.PolicyNumber=h.PolicyNumberToLoad
 					WHERE		h.Success=1
 								and h.PolicyNumberToLoad=@PolicyNumberToLoad
@@ -666,15 +666,15 @@ BEGIN
 			if @@trancount<>0 ROLLBACK TRAN
 
 			DECLARE @AlreadyLoadedSucessfully int
-			SELECT @AlreadyLoadedSucessfully=COUNT(*) FROM Dual_SetupHistory_ForClaimImport WHERE PolicyNumberToLoad=@PolicyNumberToLoad AND Success=1
+			SELECT @AlreadyLoadedSucessfully=COUNT(*) FROM Dual_SetupHistory_ForClaimImport_AU WHERE PolicyNumberToLoad=@PolicyNumberToLoad AND Success=1
 
 			DECLARE @ExistsInIMS2 int
 			SELECT @ExistsInIMS2=COUNT(*) FROM tblQuotes WHERE PolicyNumber=@PolicyNumberToLoad
 
 			IF @AlreadyLoadedSucessfully = 0 AND @ExistsInIMS2 = 0
 				BEGIN
-					DELETE FROM [Dual_SetupHistory_ForClaimImport] WHERE PolicyNumberToLoad=@PolicyNumberToLoad AND Success=0
-					INSERT INTO [dbo].[Dual_SetupHistory_ForClaimImport] (PolicyNumberToLoad, [TimeStamp], Success, ErrorMessage) 
+					DELETE FROM [Dual_SetupHistory_ForClaimImport_AU] WHERE PolicyNumberToLoad=@PolicyNumberToLoad AND Success=0
+					INSERT INTO [dbo].[Dual_SetupHistory_ForClaimImport_AU] (PolicyNumberToLoad, [TimeStamp], Success, ErrorMessage) 
 					SELECT		@PolicyNumberToLoad, getdate(), 0, ERROR_MESSAGE()
 				END
 			
