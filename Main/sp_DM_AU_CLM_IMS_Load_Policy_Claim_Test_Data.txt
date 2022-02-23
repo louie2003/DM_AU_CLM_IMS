@@ -253,7 +253,7 @@ select
 ,NULL
 ,NULL
 from [DM_IMS_AU_CLAIMS].[dbo].[Dual_ClaimTransactions_Staging] cts
-inner join ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaims] cs on cts.[Claim Number] = cs.[Claim Number] COLLATE Latin1_General_CI_AS'
+inner join ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaims_AU] cs on cts.[Claim Number] = cs.[Claim Number] COLLATE Latin1_General_CI_AS'
 
 
 exec (@sql_insert_claim_trans)
