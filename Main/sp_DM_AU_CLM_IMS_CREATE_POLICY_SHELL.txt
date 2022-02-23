@@ -1,6 +1,6 @@
-USE [DM_IMS_AU_CLAIMS]
+﻿USE [DM_IMS_AU_CLAIMS]
 GO
-/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_CREATE_POLICY_SHELL]    Script Date: 22/02/2022 1:46:43 PM ******/
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_CREATE_POLICY_SHELL]    Script Date: 24/02/2022 8:46:27 AM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1313,6 +1313,56 @@ FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
 where 1=1
 and  [Select InsuredName] like '% TAs %'
 
+-- more
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' T/As',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' T/As',  [Select InsuredName])+5 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% T/As%'
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' t/a)',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' t/a)',  [Select InsuredName])+5 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% t/a)%'
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex('t/a ',  [Select InsuredName])-1 as [Offset-1],
+Charindex('t/a ',  [Select InsuredName])+4 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '%t/a %'
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' t/As-',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' t/As-',  [Select InsuredName])+6 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% t/As-%'
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' t/as.',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' t/as.',  [Select InsuredName])+6 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% t/as.%'
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex('(t/a ',  [Select InsuredName])-1 as [Offset-1],
+Charindex('(t/a ',  [Select InsuredName])+5 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '%(t/a %'
+
+
 --catrering for Tasmanian Insured's
 and not(ps.[Select InsuredName] like '% Tas Pty%' or ps.[Select InsuredName] like '% Tas Inc%' or ps.[Select InsuredName] like '% Tas 7%' 
 			or ps.[Select InsuredName] like '% Tas of Inc%' or ps.[Select InsuredName] like '% Tas &%' or ps.[Select InsuredName] like '% Tas Limited%')
@@ -1345,6 +1395,14 @@ FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
 where 1=1
 and  [Select InsuredName] like '% TA %'
 and not([Select InsuredName] like '% TA &%')
+
+union
+SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
+Charindex(' t.as ',  [Select InsuredName])-1 as [Offset-1],
+Charindex(' t.as ',  [Select InsuredName])+6 as [Offset-2]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
+where 1=1
+and  [Select InsuredName] like '% t.as %'
 
 union
 SELECT [InsuredName_Key],[PolicyNumber],[Line of Business], [Select InsuredName],
