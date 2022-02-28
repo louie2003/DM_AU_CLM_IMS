@@ -1,6 +1,6 @@
 ﻿USE [DM_IMS_AU_CLAIMS]
 GO
-/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_CREATE_POLICY_SHELL]    Script Date: 24/02/2022 8:46:27 AM ******/
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_CREATE_POLICY_SHELL]    Script Date: 1/03/2022 9:26:20 AM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -33,7 +33,9 @@ case	when LEN(bd.[Policy number]) = 17 and bd.Suffix is NULL and isnumeric(SUBST
 		
 case	when LEN(bd.[EVO]) = 17 and isnumeric(SUBSTRING(bd.[EVO],10,3)) = 1 then SUBSTRING(bd.[EVO],10,3)
 		when LEN(bd.[EVO]) = 18 and isnumeric(SUBSTRING(bd.[EVO],11,3)) = 1 then SUBSTRING(bd.[EVO],11,3)
-		end as [BO EVO Suffix]  
+		end as [BO EVO Suffix],
+		
+cast('BO Policy has a RiskWrite record' AS VARCHAR(255))  as [Policy Condition]		  
 
 into ##temp_BO_RW_Pols
 from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd
@@ -440,6 +442,51 @@ left join [RiskWriteApac].[dbo].[Risk] r on xr.[RiskWrite RiskId] = r.riskid
 WHERE 1=1
 and t.[RiskWrite Riskid] is NULL
 
+-- Update Policy Condition if can't find a RiskWrite record 
+update ##temp_BO_RW_Pols set [Policy Condition] = 'BO Policy does NOT have a RiskWrite record' where [RiskWrite Riskid] is NULL
+
+--select top 100 * from ##temp_BO_RW_Pols where [riskwrite riskid] is NULL
+
+PRINT ''; PRINT 'Pick up Policies in RiskWrite that are not in Back Office'
+
+if OBJECT_ID('tempdb..##temp_RW_Pols_No_BO') is not null drop table ##temp_RW_Pols_No_BO
+
+select 
+distinct
+r.riskid				as [BO Policy Number],
+cast(NULL AS NVARCHAR(255)) as [BO EVO],
+r.riskextref			as [RiskWrite RiskExtRef],
+riskid					as [RiskWrite Riskid],
+LEN(r.riskid)			as [Len_BO_Policy],
+0						as [Len_BO_EVO],
+cast(NULL AS NVARCHAR(255)) as [BO Policy Suffix],
+cast(NULL AS NVARCHAR(255)) as [BO EVO Suffix],
+	
+cast('RiskWrite Policy does NOT have BO Policy record' as varchar(255)) as [Policy Condition]		
+ 
+--select count(*)
+into ##temp_RW_Pols_No_BO
+from [RiskWriteApac].[dbo].[risk] r
+left join ##temp_BO_RW_Pols t1 on r.riskid = t1.[RiskWrite Riskid]
+left join ##temp_BO_RW_Pols t2 on isnull(r.riskextref,'XXXX') = isnull(t2.[RiskWrite RiskExtRef],'ZZZZ')
+where 1=1
+and t1.[RiskWrite Riskid] is NULL
+and t2.[RiskWrite RiskExtRef] is NULL
+and r.id_quot is NOT NULL
+and not(r.schemeid like '%test%')
+and not(r.riskstatus in ('NTU','QUOT','WIP')) 
+
+
+PRINT ''; PRINT'Merge the 2 files'
+
+if OBJECT_ID('tempdb..##temp_Merged_BO_RW_Pols') is not null drop table ##temp_Merged_BO_RW_Pols
+
+select *
+into ##temp_Merged_BO_RW_Pols
+from ##temp_BO_RW_Pols
+union 
+select *
+from ##temp_RW_Pols_No_BO
 
 
 -- END UPDATES -- END UPDATES -- END UPDATES -- END UPDATES -- END UPDATES -- END UPDATES -- END UPDATES 
@@ -447,6 +494,18 @@ and t.[RiskWrite Riskid] is NULL
 /*
 
 -- QUERIES -- QUERIES-- QUERIES -- QUERIES-- QUERIES -- QUERIES
+
+/*
+select COUNT(*) from ##temp_BO_RW_Pols
+
+select top 5 * from ##temp_BO_RW_Pols --where [BO Policy Number] = 'SI/00008/000/04/U'
+select top 10 * from ##temp_RW_Pols_No_BO
+select distinct Len_BO_Policy from ##temp_RW_Pols_No_BO
+
+select top 10 * from ##temp_RW_Pols_No_BO 
+select top 10 * from ##temp_Merged_BO_RW_Pols
+*/
+
 
 -- 120 Claims where BO Policy not in RiskWrite
 select t.[BO Policy Number], t.[BO EVO], c.[Company name], pvg.[Policy Holder], pvg.[Policy from], pvg.[Policy to], pvg.TransType, c.Status, c.[Total Incurred], c.*
@@ -529,13 +588,11 @@ order by [BO Policy Number]
 
 */
 
-
+--/*
 PRINT ''; PRINT getdate(); PRINT 'Build trigger file for Policy Shell'
-
 
 IF OBJECT_ID('[DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_FILE]', 'U') IS NOT NULL
                 DROP TABLE [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_FILE]
-
 
 CREATE TABLE [dbo].[DM_AU_CLM_IMS_WORK_FILE](
 	[Policy number] [nvarchar](255) NULL,
@@ -546,6 +603,7 @@ CREATE TABLE [dbo].[DM_AU_CLM_IMS_WORK_FILE](
 	[Insured Name] [nvarchar](800) NULL,
 	[Broker Name] [nvarchar](255) NULL,
 	[Broker State] [nvarchar](40) NULL,
+	[Broker Key] [nvarchar](255) NULL,
 	[EffDate] [datetime2](7) NULL,
 	[ExpDate] [datetime2](7) NULL,
 	[Carrier Code] [varchar](1) NOT NULL,
@@ -580,13 +638,15 @@ CREATE TABLE [dbo].[DM_AU_CLM_IMS_WORK_FILE](
 	[GSTPercent] [float] NULL,
 	[Class] [nvarchar](255) NULL,
 	[RefPayToDual] [nvarchar](20) NULL,
-	[RiskWrite Product]  [nvarchar](255) NULL
+	[RiskWrite Product] [nvarchar](255) NULL,
+	[Policy Condition] [varchar](255) NULL
 ) ON [PRIMARY]
 
 
 insert into  [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_FILE] 
 select 
 distinct
+--select top 1
 --cast(substring(tc.[Claim Number],3,5) as numeric (10,0)) as [CLAIM_NUMB],
 --tc.[Claim Number] as [FULL_CLAIM_NUMB],
 tbwp.[BO Policy Number], 
@@ -611,7 +671,10 @@ coalesce(rbc.[brokercompanyname], bodv.[broker name])		as [Broker Name],
 --	 when rbc.[invoiceaddress5] in ('Tasmania') then 'TAS'
 --		else 'Unknown'									end as [Broker State],
 
-bodv.[Brok# State]											as [Broker State],	
+coalesce(bodv.[Brok# State], rbc.OfficeAddress5, 'NSW ')    as [Broker State],	
+
+-- Broker Key
+coalesce(rbc.[brokercompanycode], bodv.[Client key], 'DMIG') as [BrokerKey],
 
 coalesce(rsk.[coverstart], bodv.[Policy from])				as EffDate,
 coalesce(rsk.[coverend], bodv.[Policy to])					as ExpDate,
@@ -657,19 +720,21 @@ figures.id_risk												as id_risk,
 bod.GST														as [GSTPercent],
 bod.[PRODUCT]												as [Class],
 bd.REF__PAY_T												as [RefPayToDual],
-rprod.[Productname]											as [RiskWrite Product]
+rprod.[Productname]											as [RiskWrite Product],
+tbwp.[Policy Condition]
 
-from ##temp_BO_RW_Pols tbwp
-inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bod on tbwp.[BO Policy Number] = bod.[Policy number]
-inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR] bodv on tbwp.[BO Policy Number] = bodv.[Policy number]
+
+from ##temp_Merged_BO_RW_Pols tbwp
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bod on tbwp.[BO Policy Number] = bod.[Policy number]
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR] bodv on tbwp.[BO Policy Number] = bodv.[Policy number]
 left join [RiskWriteApac].[dbo].[risk] rsk on tbwp.[RiskWrite Riskid] = rsk.riskid
 left join [RiskWriteApac].[dbo].[brokercompany] rbc on rsk.id_brkc = rbc.id_brkc
 left  join (select ID_BKRC, max(ID_BRKR) as ID_BRKR from [RiskWriteApac].[dbo].[broker] where isnull(EMAIL,'') <> '' group by ID_BKRC) rbrmax on rbc.id_brkc = rbrmax.ID_BKRC
 left  join [RiskWriteApac].[dbo].[broker] rbr on rbrmax.ID_BRKR = rbr.ID_BRKR
 left join [RiskWriteApac].[dbo].[client] clnt on rsk.id_clnt = clnt.id_clnt
 left join [RiskWriteApac].[dbo].[product] rprod on rsk.productid = rprod.PRODUCTID
-inner join (select [CONTRAID], max(BINDERENDD) as maxbinddate from [RiskWriteApac].[dbo].[BO_PRODUCT] group by [CONTRAID]) bprodmax on bod.[Year letter]+bod.[CONTRACT] = bprodmax.[CONTRAID] 
-inner join [RiskWriteApac].[dbo].[BO_PRODUCT] bprod on bprodmax.CONTRAID = bprod.CONTRAID and bprodmax.maxbinddate = bprod.BINDERENDD
+left join (select [CONTRAID], max(BINDERENDD) as maxbinddate from [RiskWriteApac].[dbo].[BO_PRODUCT] group by [CONTRAID]) bprodmax on bod.[Year letter]+bod.[CONTRACT] = bprodmax.[CONTRAID] 
+left join [RiskWriteApac].[dbo].[BO_PRODUCT] bprod on bprodmax.CONTRAID = bprod.CONTRAID and bprodmax.maxbinddate = bprod.BINDERENDD
 left join [RiskWriteApac].[dbo].[users] usr on rsk.id_usrr_underwriter = usr.id_usrr 
 left join  [RiskWriteApac].[dbo].[BO_DUALDATA] bd on tbwp.[BO Policy Number] = bd.[POLICY__]
 
@@ -691,9 +756,50 @@ left join [RiskWriteApac].[dbo].[quotepremium] qp on qs.id_qtsn = qp.id_qtsn
 
 where 1=1
 and not(q.quotestatus in ('DECL','NTU','WIP'))
+and q.quotetype = 'QUOTE'
 group by 
 q.id_risk
 ) figures on rsk.id_risk = figures.id_risk
+
+where 1=1
+and tbwp.[BO Policy Number] not in (select [Policy Number] from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_XREF_EXCLUDE_POLICY])
+
+
+PRINT ''; PRINT 'Complete some fields on Work File for RW Policies'
+
+update wf
+	set
+--select wf.[RiskId], wf.*,  r.riskid, q.id_quot, qsm.ID_BUSG, qsm.*, bg.*,
+	[Line of Business] = bg.classofbusiness,
+	[Binder] = bg.[description]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_FILE] wf
+inner join [RiskWriteApac].[dbo].[risk] r on wf.[RiskId] = r.riskid
+inner join [RiskWriteApac].[dbo].[quotes] q on r.id_risk = q.id_risk
+inner join (select id_quot, min(ID_QTSN) as ID_QTSN from [RiskWriteApac].[dbo].[quotesection]  where ID_BUSG is NOT NULL group by id_quot) qs on q.id_quot = qs.ID_QUOT
+inner join [RiskWriteApac].[dbo].[quotesection] qsm on qs.ID_QTSN = qsm.ID_QTSN
+inner join [RiskWriteApac].[dbo].[businessgroup] bg on qsm.ID_BUSG = bg.id_busg
+where 1=1
+--and not(q.quotestatus in ('DECL','NTU','WIP'))
+and q.quotetype = 'QUOTE'
+and wf.[policy condition] in ('RiskWrite Policy does NOT have BO Policy record', 'BO Policy has a RiskWrite record')
+--and r.riskid = 'MLW38892516H1' -- 'PI-53739416I0'
+--order by wf.[RiskId]
+
+
+PRINT ''; PRINT 'Complete Line of Business field if still NULL'
+
+update wf
+	set
+--select wf.[RiskId], wf.[Line of Business], wf.[Binder], r.riskid, xr.*, 
+	[Line of Business] = xr.[LineofBusiness]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_FILE] wf
+inner join  [RiskWriteApac].[dbo].[risk] r on wf.[RiskId] = r.riskid
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_XREF_LINE_OF_BUSINESS] xr on r.productid = xr.[RW ProductID]
+where 1=1
+and wf.[policy condition] in ('RiskWrite Policy does NOT have BO Policy record', 'BO Policy has a RiskWrite record')
+and isnull(wf.[Line of Business],'') = ''
+
+
 
 /*
 select * from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_FILE] where [Policy Number] in (
@@ -775,6 +881,7 @@ CREATE TABLE [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL](
 	[Insured Name] [nvarchar](max) NULL,
 	[Broker Name] [nvarchar](max) NULL,
 	[Broker State] [nvarchar](255) NULL,
+	[Broker Key] [nvarchar](255) NULL,
 	[Carrier Code] [nvarchar](255) NULL,
 	[WrittenPremium] [numeric](18, 2) NULL,
 	[Gross Comm Percent] [numeric](18, 2) NULL,
@@ -807,7 +914,8 @@ CREATE TABLE [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL](
 	[dba] [nvarchar](max) NULL,
 	[GSTPercent] [numeric](18, 2) NULL,
 	[Class] [nvarchar](255) NULL,
-	[RefPayToDual] [nvarchar](255) NULL
+	[RefPayToDual] [nvarchar](255) NULL,
+	[Policy Condition] [varchar](255) NULL
 
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 
@@ -827,6 +935,7 @@ ltrim(rtrim([Line of Business])),
 [Insured Name],
 [Broker Name],
 [Broker State],
+[Broker Key],
 [Carrier Code],
 [WrittenPremium],
 [Gross Comm Percent],
@@ -859,7 +968,8 @@ NULL,
 NULL,
 [GSTPercent],
 [Class],
-[RefPayToDual]
+[RefPayToDual],
+[Policy Condition]
 
 from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_FILE]
 
