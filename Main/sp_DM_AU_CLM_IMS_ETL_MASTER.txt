@@ -1,6 +1,6 @@
 USE [DM_IMS_AU_CLAIMS]
 GO
-/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_ETL_MASTER]    Script Date: 22/02/2022 1:47:33 PM ******/
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_ETL_MASTER]    Script Date: 1/03/2022 9:21:51 AM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -29,6 +29,10 @@ Declare @ProcError      Int = 0
 				PRINT 'IMPORTANT  IMPORTANT  IMPORTANT'
 				PRINT ''  
 				PRINT 'Have you refreshed the '
+				PRINT 'DM_AU_CLM_IMS_BO_POLICY_VAR table from AU BACK OFFICE [VAR]'
+				PRINT 'and'  
+				PRINT 'DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION table from AU BACK OFFICE [VAR for G Binder]'
+				PRINT 'and'  
 				PRINT 'DM_AU_CLM_IMS_BO_CLAIMS_PAID_RESERVES table from AU BACK OFFICE [EXCEL Claims Paid & Reserves]'
 				PRINT 'and'  
 				PRINT 'DM_AU_CLM_IMS_BO_CLAIMS_COLLECTION_TRANS table from AU BACK OFFICE [EXCEL Claims Collection]'
@@ -68,9 +72,9 @@ EXECUTE [DM_IMS_AU_CLAIMS].[dbo].[sp_DM_AU_CLM_IMS_Load_Dual_FigTeeClaimTransact
 
 EXECUTE [DM_IMS_AU_CLAIMS].[dbo].[sp_DM_AU_CLM_IMS_GET_FIGTREE_CLAIM_NOTES]
 
---EXECUTE [DM_IMS_AU_CLAIMS].[dbo].[sp_DM_AU_CLM_IMS_Show Claims_not_Extracted]
+EXECUTE [DM_IMS_AU_CLAIMS].[dbo].[sp_DM_AU_CLM_IMS_Show Claims_not_Extracted]
 
---EXECUTE [DM_IMS_AU_CLAIMS].[dbo].[sp_DM_AU_CLM_IMS_Load_Policy_Claim_Test_Data]
+EXECUTE [DM_IMS_AU_CLAIMS].[dbo].[sp_DM_AU_CLM_IMS_Load_Policy_Claim_Test_Data]
 
 
 PRINT ''; PRINT getdate(); PRINT ' **** JOB COMPLETED SUCCESSFULLY ****'
