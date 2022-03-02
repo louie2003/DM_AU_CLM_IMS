@@ -67,6 +67,7 @@ SELECT
 ,pds.InsuredName										as [CardName]
 ,getdate()												as [ImportDate]   
 ,ps.[RiskWrite RiskId]  
+,ps.[RiskWrite RiskExtRef]  
 ,ps.[Policy Condition]
 
 FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
