@@ -1,6 +1,6 @@
 USE [DM_IMS_AU_CLAIMS]
 GO
-/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_Load_importAUPolicySummary]    Script Date: 22/02/2022 1:52:49 PM ******/
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_Load_importAUPolicySummary]    Script Date: 2/03/2022 4:19:57 PM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -30,9 +30,10 @@ insert into [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicySummary_Staging]
 SELECT 
  pds.LegacyID
 ,ps.[New/Renew]
-,pds.[InsuredName]										as [Insured Name]
-,pds.[BrokerName]										as [Broker Name]
-,pds.[BrokerState]										as [Broker State]
+,pds.[InsuredName]										as [InsuredName]
+,pds.[BrokerName]										as [BrokerName]
+,pds.[BrokerState]										as [BrokerState]
+,pds.[BrokerStateName]									as [BrokerStateName]
 ,coalesce(ps.[EffDate], pds.[EffectiveDate])			as [EffDate]
 ,coalesce(ps.[ExpDate], pds.[ExpirationDate])			as [ExpDate]
 ,ps.[Carrier Code]
@@ -66,12 +67,11 @@ SELECT
 ,pds.InsuredName										as [CardName]
 ,getdate()												as [ImportDate]   
 ,ps.[RiskWrite RiskId]  
+,ps.[Policy Condition]
 
 FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
 --inner join [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging] pds on coalesce(ps.[RiskWrite RiskId], ps.[policynumber]) = pds.PolicyNumber 
 inner join [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging] pds on ps.[policynumber] = pds.PolicyNumber 
-
-
 where 1=1
 
  
@@ -101,14 +101,12 @@ exec (@sql_del)
 
 PRINT ''; PRINT getdate(); PRINT 'Refresh data in from [Dual_Reporting] [importAUPolicySummary] table'
 
-
 declare @sql_insert varchar(max)
 
 set @sql_insert = '
 INSERT INTO ' + @ServerName + '.'+ @DBName +'.[dbo].[importAUPolicySummary]
 SELECT *
 FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicySummary_Staging]'
-
 
 exec (@sql_insert)
 

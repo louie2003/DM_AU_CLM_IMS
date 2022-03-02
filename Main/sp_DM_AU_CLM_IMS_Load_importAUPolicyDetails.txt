@@ -1,6 +1,6 @@
 USE [DM_IMS_AU_CLAIMS]
 GO
-/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_Load_importAUPolicyDetails]    Script Date: 22/02/2022 1:52:16 PM ******/
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_Load_importAUPolicyDetails]    Script Date: 2/03/2022 4:13:10 PM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -47,12 +47,13 @@ select
 ,coalesce(ps.[Currency], g.[Currency],'AUD')					as [Currency]
 ,coalesce(ps.[Binder], g.[Contract])							as [Contract]
 ,isnull(g.[Assets / Turnover],0)								as [AssetsTurnover]
-,isnull(g.[Client key],'DMIG')									as [BrokerKey]
+,coalesce(ps.[Broker Key], g.[Client key],'DMIG')				as [BrokerKey]
 ,coalesce(ps.[Broker Name], g.[broker name], v.[Broker Name], 'Default Broker for Migration') as [BrokerName]
 ,coalesce(ps.[Producer Comm Percent], g.[Brokers % excluding cedant],0) as [BrokersPct]
-,coalesce(ps.[Broker State], g.[Brok# State], v.[Brok# State], 'Unknown') as [BrokerState]
+,isnull(xrs.[IMS State],'AU')									as [BrokerState]
+,ISNULL(xrs.[State Name],'Australia')							as [BrokerStateName]
 ,coalesce(ps.[WrittenPremium], g.[Gross 100%], 0)				as [Premium]
-,coalesce(ps.[WrittenPremium]*(ps.[GSTPercent]/100), g.[GST])			as [GST]
+,coalesce(ps.[WrittenPremium]*(ps.[GSTPercent]/100), g.[GST])	as [GST]
 ,coalesce(wf.[brokerage], g.[Brok# Comm#])						as [BrokerCommission]
 ,coalesce(wf.[brokerage]*ps.[GSTPercent], g.[GST on broker comm]) as [GSTOnBrokerCommission]
 ,isnull(g.[Adm# Fee],0) 										as [AdminFee]
@@ -172,25 +173,31 @@ select
 ,ps.[dba]							as [InsuredNameDBA]
 ,NULL								as [IMSLineName]
 ,NULL								as [IMSLineGUID]
+,ps.[Policy Condition]
 --select ps.[Policynumber]
 --select distinct g.[UW]
 --select distinct ps.status --v.[Status] --g.[Status]
 --select g.[Status], g.[policy to], case when g.[Status] = 'Dead' then 'Expired' when g.[Policy to] < DATEADD(m, -3, getdate()) and g.[Status] = 'Current' then 'Expired' else g.[Status] end as [Status]
-
+--select count(*)
+--select distinct isnull(xrs.[IMS State],'AU')	
+--select distinct ps.[Broker State], g.[Brok# State], v.[Brok# State], isnull(xrs.[IMS State],'AU'), isnull(xrs.[State Name],'Australia')										
 FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL] ps
-inner join (select [Policy number], max([firm order date]) [firm order date] 
+left join (select [Policy number], max([firm order date]) [firm order date] 
 				from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] 
 				where 1=1
 				--and isnull(TransType,'Original') = 'Original'
 				group by [Policy number]) gmax on ps.PolicyNumber = gmax.[Policy number]
 
-inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] g on ps.PolicyNumber = g.[Policy number] and gmax.[firm order date] = g.[Firm order date]
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] g on ps.PolicyNumber = g.[Policy number] and gmax.[firm order date] = g.[Firm order date]
 
 left join  [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR] v on ps.PolicyNumber = v.[Policy number] and gmax.[firm order date] = v.[Firm order date]
 
 inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_FILE] wf on ps.PolicyNumber = wf.[Policy number]
 
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_XREF_STATE] xrs on coalesce(ps.[Broker State], g.[Brok# State], v.[Brok# State], 'Unknown') = xrs.[Source State]
+
 where 1=1
+--and [Source State] is NULL
 --and coalesce(ps.[Select InsuredName], g.[Policy Holder], 'Unknown') = 'Unknown'
 --and coalesce(ps.[RiskWrite RiskId],ps.[Policynumber])  = 'SD/15349/001/10/B'
 --and coalesce(ps.[RiskWrite RiskId],ps.[Policynumber]) is NULL
@@ -243,6 +250,63 @@ FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging]'
 
 
 exec (@sql_insert)
+
+
+
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [Dual_Reporting] [importAUExpiringPolicies] table'
+
+declare @sql_del_exp_pols varchar(max)
+
+set @sql_del_exp_pols = 'DELETE from ' + @ServerName + '.'+ @DBName +'.[dbo].[importAUExpiringPolicies]'
+
+exec (@sql_del_exp_pols)
+
+/*
+
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in from [Dual_Reporting] [importAUExpiringPolicies] table'
+
+
+declare @sql_insert_exp_pols varchar(max)
+
+set @sql_insert_exp_pols = '
+INSERT INTO ' + @ServerName + '.'+ @DBName +'.[dbo].[importAUExpiringPolicies]
+SELECT 
+[PolicyNumber],
+[PartialPolicyNumber],
+[UW],
+--[EffectiveDate],
+--[ExpirationDate],
+cast(CONVERT(VARCHAR(10), CONVERT(DATE, [EffectiveDate], 103), 112) as int) as [PolicyFrom],
+cast(CONVERT(VARCHAR(10), CONVERT(DATE, [ExpirationDate], 103), 112) as int) as [PolicyTo]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging]'
+
+exec (@sql_insert_exp_pols)
+*/
+
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [Dual_Reporting] [importAUPolicyCardNames] table'
+
+declare @sql_del_pol_cards varchar(max)
+
+set @sql_del_pol_cards = 'DELETE from ' + @ServerName + '.'+ @DBName +'.[dbo].[importAUPolicyCardNames]'
+
+exec (@sql_del_pol_cards)
+
+
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in from [Dual_Reporting] [importAUPolicyCardNames] table'
+
+
+declare @sql_insert_pol_cards varchar(max)
+
+set @sql_insert_pol_cards = '
+INSERT INTO ' + @ServerName + '.'+ @DBName +'.[dbo].[importAUPolicyCardNames]
+SELECT 
+[PolicyNumber],
+[InsuredName]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging]'
+
+
+exec (@sql_insert_pol_cards)
+
 
 PRINT ''; PRINT getdate(); PRINT 'Exiting Stored Procedure [sp_DM_AU_CLM_IMS_Load_importAUPolicyDetails]' 
 
