@@ -1,6 +1,6 @@
 USE [DM_IMS_AU_CLAIMS]
 GO
-/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_Load_Dual_FigTeeClaimTransactions]    Script Date: 22/02/2022 1:51:40 PM ******/
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_Load_Dual_FigTeeClaimTransactions]    Script Date: 7/04/2022 8:42:11 AM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -117,11 +117,11 @@ and cts.[Claim Number] is NULL
 
 
 
-PRINT ''; PRINT getdate(); PRINT 'Delete data from [IMS] [Dual_FigTreeClaimTransactions_AU] table'
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [IMS] [Dual_FigTreeClaimTransactions] table'
 
 declare @sql_del varchar(max)
 
-set @sql_del = 'DELETE from ' + @ServerName + '.'+ @DBName +'.[dbo].[Dual_FigTreeClaimTransactions_AU]'
+set @sql_del = 'DELETE from ' + @ServerName + '.'+ @DBName +'.[dbo].[Dual_FigTreeClaimTransactions]'
 
 exec (@sql_del)
 
@@ -130,12 +130,12 @@ exec (@sql_del)
 -- Create Claim Transactions table which will be used to import data into IMS
 -- Note, the table name of [IMS] [Dual_FigTreeClaimTransactions] is so that we don't have to modify the North American software which refers to this table name...the table contains data from FigTree and BackOffice
 
-PRINT ''; PRINT getdate(); PRINT 'Refresh data in [IMS] [Dual_FigTreeClaimTransactions_AU] which will be imported into IMS'
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in [IMS] [Dual_FigTreeClaimTransactions] which will be imported into IMS'
 
 declare @sql_insert varchar(max)
 
 set @sql_insert = '
-INSERT INTO ' + @ServerName + '.'+ @DBName +'.[dbo].[Dual_FigTreeClaimTransactions_AU]
+INSERT INTO ' + @ServerName + '.'+ @DBName +'.[dbo].[Dual_FigTreeClaimTransactions]
 select 
  [Claim Number]
 ,[Policy Number]

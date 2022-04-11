@@ -1,6 +1,6 @@
 USE [DM_IMS_AU_CLAIMS]
 GO
-/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_Load_importAUPolicySummary]    Script Date: 2/03/2022 4:19:57 PM ******/
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_Load_importAUPolicySummary]    Script Date: 7/04/2022 8:44:22 AM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -41,7 +41,7 @@ SELECT
 ,ps.[Gross Comm Percent]
 ,ps.[Producer Comm Percent]
 ,ps.[Indemnity Limit]
-,ps.[Line of Business]
+,pds.[Class]											as [Line of Business]
 ,ps.[Policy Section]
 ,coalesce(ps.[Excess], pds.[ExcessLimit])				as [Excess]
 ,pds.[Layer]											as [Primary / Excess / Coinsurance]
@@ -53,9 +53,9 @@ SELECT
 ,pds.[Currency]
 ,pds.[Scheme]
 ,coalesce(ps.[Activity Code], pds.[ActivityCode])		as [Activity Code]
-,ps.[UMR]
-,ps.[Year Letter]
-,ps.[Year Letter New]
+,coalesce(ps.[UMR], pds.[UMR])							as [UMR]
+,pds.[YearLetter]										as [Year Letter]
+,pds.[YearLetter]										as [Year Letter New]
 ,pds.[UW] as [Underwriter]
 --,[PolicyNumber]
 --,coalesce(ps.[RiskWrite RiskId], pds.[policynumber])	as [PolicyNumber]

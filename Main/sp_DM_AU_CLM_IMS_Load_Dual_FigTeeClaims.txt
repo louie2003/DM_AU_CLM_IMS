@@ -1,6 +1,6 @@
 USE [DM_IMS_AU_CLAIMS]
 GO
-/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_Load_Dual_FigTeeClaims]    Script Date: 22/02/2022 1:51:07 PM ******/
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_Load_Dual_FigTeeClaims]    Script Date: 7/04/2022 8:41:21 AM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -36,9 +36,9 @@ select
 ,[RiskWrite Policy Number] as [RiskWrite RiskId] 
 ,[Year Letter]
 ,[Claimant]
-,[Contract]
+,p.[Contract]
 ,[Payee]
-,[Status]
+,c.[Status]
 ,[Type]
 ,[Claim Summary]
 ,[Claim Code]
@@ -59,15 +59,15 @@ select
 ,[Claims Paid]
 ,[Fees Paid]
 ,[Denied Indemnity]
-,[Currency]
+,c.[Currency]
 ,[Activity Code]
 ,[Total GST]
 ,[Excess]
 ,[Broker Name]
 ,[Broker email address]
-,[Scheme]
-,[UMR]
-,[Product]
+,c.[Scheme]
+,c.[UMR]
+,p.[Class] as [Product]
 ,[ClaimsCount]
 ,[Claim Payment - pol ccy-excl GST]
 ,[Fees Payment - pol ccy-excl GST]
@@ -105,7 +105,8 @@ select
 ,NULL
 ,NULL
 ,NULL
-from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_FT_CLAIMS]
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_FT_CLAIMS] c
+inner join [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging] p on c.[Policy Number] = p.PolicyNumber
 
 
 PRINT ''; PRINT getdate(); PRINT 'Delete duplicate Claim data from [Dual_FigTreeClaims] table, selecting the right policy number to delete where FigTree policy is not the right RiskWrite policy'
@@ -140,15 +141,15 @@ from
  and r.riskid is NULL
 
 
-PRINT ''; PRINT getdate(); PRINT 'Delete data from [IMS] [Dual_FigTreeClaims_AU] table'
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [IMS] [Dual_FigTreeClaims] table'
 
 declare @sql_del varchar(max)
 
-set @sql_del = 'DELETE from ' + @ServerName + '.'+ @DBName +'.[dbo].[Dual_FigTreeClaims_AU]'
+set @sql_del = 'DELETE from ' + @ServerName + '.'+ @DBName +'.[dbo].[Dual_FigTreeClaims]'
 
 exec (@sql_del)
 
---DELETE FROM [AUSYDIMSD01].[IMS].[dbo].[Dual_FigTreeClaims_AU]
+--DELETE FROM [AUSYDIMSD01].[IMS].[dbo].[Dual_FigTreeClaims]
 
 --DELETE FROM [AUSYDIMSD01].[IMS_AU_Claim].[dbo].[Dual_FigTreeClaims]
 
@@ -158,13 +159,13 @@ exec (@sql_del)
 -- Create Claim details table which will be used to import data into IMS
 -- Note, the table name of [IMS] [Dual_FigTreeClaims] is so that we don't have to modify the North American software which refers to this table name...the table contains data from FigTree and BackOffice
 
-PRINT ''; PRINT getdate(); PRINT 'Refresh data in [IMS] [Dual_FigTreeClaims_AU] which will be imported into IMS'
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in [IMS] [Dual_FigTreeClaims] which will be imported into IMS'
 
 
 declare @sql_insert varchar(max)
 
 set @sql_insert = '
-INSERT INTO ' + @ServerName + '.'+ @DBName +'.[dbo].[Dual_FigTreeClaims_AU]
+INSERT INTO ' + @ServerName + '.'+ @DBName +'.[dbo].[Dual_FigTreeClaims]
 select 
  [Claim Number]
 ,[FTCClaimNumber]

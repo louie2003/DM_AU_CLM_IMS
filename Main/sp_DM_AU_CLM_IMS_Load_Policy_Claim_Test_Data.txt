@@ -1,6 +1,6 @@
 USE [DM_IMS_AU_CLAIMS]
 GO
-/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_Load_Policy_Claim_Test_Data]    Script Date: 23/02/2022 4:37:48 PM ******/
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_Load_Policy_Claim_Test_Data]    Script Date: 7/04/2022 8:45:07 AM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -20,13 +20,14 @@ PRINT ''; PRINT getdate(); PRINT 'Create test data temp table'
 if OBJECT_ID('tempdb..##temp_pols') is not null drop table ##temp_pols
 
 
---/* This gives us 238 policies
+/* This gives us 238 policies
 select top 1 with ties
    Contract, PolicyNumber
 into ##temp_pols
 from [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging]
 order by row_number() over (partition by Contract order by PolicyNumber desc)
---*/
+
+*/
 
 /* This gives us 1,200 policies
 select top 1 with ties
@@ -37,13 +38,13 @@ order by row_number() over (partition by [BrokerName] order by PolicyNumber desc
 */
 
 
-/* This gives us 6,000 policies
+--/* This gives us 6,000 policies
 select top 1 with ties
    [EffectiveDate], PolicyNumber
 into ##temp_pols
 from [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging]
 order by row_number() over (partition by [EffectiveDate] order by PolicyNumber desc)
-*/
+--*/
 
 -- THIS IS THE TEST DATA INSERT INTO [importAUPolicyDetails]
 
@@ -94,11 +95,11 @@ exec (@sql_insert_polsum)
 
 -- CLAIMS
 
-PRINT ''; PRINT getdate(); PRINT 'Delete data from [IMS] [Dual_FigTreeClaims_AU] table'
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [IMS] [Dual_FigTreeClaims] table'
 
 declare @sql_del_claim varchar(max)
 
-set @sql_del_claim = 'DELETE from ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaims_AU]'
+set @sql_del_claim = 'DELETE from ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaims]'
 
 exec (@sql_del_claim)
 
@@ -107,13 +108,13 @@ exec (@sql_del_claim)
 -- Create Claim details table which will be used to import data into IMS
 -- Note, the table name of [IMS] [Dual_FigTreeClaims] is so that we don't have to modify the North American software which refers to this table name...the table contains data from FigTree and BackOffice
 
-PRINT ''; PRINT getdate(); PRINT 'Refresh data in [IMS] [Dual_FigTreeClaims_AU] which will be imported into IMS'
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in [IMS] [Dual_FigTreeClaims] which will be imported into IMS'
 
 
 declare @sql_insert_claim varchar(max)
 
 set @sql_insert_claim = '
-INSERT INTO ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaims_AU]
+INSERT INTO ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaims]
 select 
  [Claim Number]
 ,[FTCClaimNumber]
@@ -199,11 +200,11 @@ exec (@sql_insert_claim)
 
 -- CLAIM TRANSACTIONS
 
-PRINT ''; PRINT getdate(); PRINT 'Delete data from [IMS] [Dual_FigTreeClaimTransactions_AU] table'
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [IMS] [Dual_FigTreeClaimTransactions] table'
 
 declare @sql_del_claim_trans varchar(max)
 
-set @sql_del_claim_trans = 'DELETE from ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaimTransactions_AU]'
+set @sql_del_claim_trans = 'DELETE from ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaimTransactions]'
 
 exec (@sql_del_claim_trans)
 
@@ -212,13 +213,13 @@ exec (@sql_del_claim_trans)
 -- Create Claim details table which will be used to import data into IMS
 -- Note, the table name of [IMS] [Dual_FigTreeClaims] is so that we don't have to modify the North American software which refers to this table name...the table contains data from FigTree and BackOffice
 
-PRINT ''; PRINT getdate(); PRINT 'Refresh data in [IMS] [Dual_FigTreeClaimTransactions_AU] which will be imported into IMS'
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in [IMS] [Dual_FigTreeClaimTransactions] which will be imported into IMS'
 
 
 declare @sql_insert_claim_trans varchar(max)
 
 set @sql_insert_claim_trans = '
-INSERT INTO ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaimTransactions_AU]
+INSERT INTO ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaimTransactions]
 select 
  cts.[Claim Number]
 ,cts.[Policy Number]
@@ -253,18 +254,18 @@ select
 ,NULL
 ,NULL
 from [DM_IMS_AU_CLAIMS].[dbo].[Dual_ClaimTransactions_Staging] cts
-inner join ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaims_AU] cs on cts.[Claim Number] = cs.[Claim Number] COLLATE Latin1_General_CI_AS'
+inner join ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaims] cs on cts.[Claim Number] = cs.[Claim Number] COLLATE Latin1_General_CI_AS'
 
 
 exec (@sql_insert_claim_trans)
 
 -- CLAIM NOTES
 
-PRINT ''; PRINT getdate(); PRINT 'Delete data from [IMS] [Dual_FigTreeClaim_Notes_AU] table'
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [IMS] [Dual_FigTreeClaim_Notes] table'
 
 declare @sql_del_claim_notes varchar(max)
 
-set @sql_del_claim_notes = 'DELETE from ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaim_Notes_AU]'
+set @sql_del_claim_notes = 'DELETE from ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaim_Notes]'
 
 exec (@sql_del_claim_Notes)
 
@@ -273,21 +274,21 @@ exec (@sql_del_claim_Notes)
 -- Create Claim details table which will be used to import data into IMS
 -- Note, the table name of [IMS] [Dual_FigTreeClaims] is so that we don't have to modify the North American software which refers to this table name...the table contains data from FigTree and BackOffice
 
-PRINT ''; PRINT getdate(); PRINT 'Refresh data in [IMS] [Dual_FigTreeClaim_Notes_AU] which will be imported into IMS'
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in [IMS] [Dual_FigTreeClaim_Notes] which will be imported into IMS'
 
 
 declare @sql_insert_claim_Notes varchar(max)
 
 set @sql_insert_claim_Notes = '
-INSERT INTO ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaim_Notes_AU]
+INSERT INTO ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaim_Notes]
 select cn.*
 from [DM_IMS_AU_CLAIMS].[dbo].[Dual_FigTreeClaim_Notes] cn
-inner join ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaims_AU] cs on cs.[Claim Number] = cn.[Claim Number] COLLATE Latin1_General_CI_AS'
+inner join ' + @ServerName + '.'+ @Claims_DBName +'.[dbo].[Dual_FigTreeClaims] cs on cs.[Claim Number] = cn.[Claim Number] COLLATE Latin1_General_CI_AS'
 
 
 exec (@sql_insert_claim_Notes)
 
-
+/*
 
 PRINT ''; PRINT getdate(); PRINT 'Delete data from [Dual_Reporting] [importAUExpiringPolicies] table'
 
@@ -319,6 +320,7 @@ inner join ##temp_pols t on p.PolicyNumber = t.PolicyNumber'
 
 exec (@sql_insert_exp_pols)
 
+*/
 
 PRINT ''; PRINT getdate(); PRINT 'Delete data from [Dual_Reporting] [importAUPolicyCardNames] table'
 

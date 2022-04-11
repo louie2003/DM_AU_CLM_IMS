@@ -1,6 +1,6 @@
 USE [DM_IMS_AU_CLAIMS]
 GO
-/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_CLEANUP_BO_DATA]    Script Date: 22/02/2022 1:43:30 PM ******/
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_CLEANUP_BO_DATA]    Script Date: 7/04/2022 8:31:02 AM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -88,6 +88,36 @@ update [DM_IMS_AU_CLAIMS].[dbo].[DUALPAYS1]
 
 */
 
+PRINT ''; PRINT 'Delete duplicate Policy records from VAR-G, leaving one record for the Policy'
+
+delete from a
+--select * 
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] a
+inner join
+(SELECT MAX(%%lockres%%) pseudoID, [Policy number], isnull([Year letter],'') as [Year letter], isnull([Policy from],'') as [Policy from], isnull([Policy to],'') as [Policy to]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION]  
+GROUP BY [Policy number], [Firm order date], [Year letter], [Policy from], [Policy to]
+) b ON b.[Policy number] = a.[Policy number] 
+							AND isnull(b.[Year letter],'') = a.[Year letter] 
+							and isnull(a.[Policy from],'') = b.[Policy from]
+							and isnull(a.[Policy to],'') = b.[Policy to]
+							AND b.pseudoID <> a.%%lockres%%
+
+
+PRINT ''; PRINT 'Delete duplicate Policy records from VAR, leaving one record for the Policy'
+
+delete from a
+--select * 
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR] a
+inner join
+(SELECT MAX(%%lockres%%) pseudoID, [Policy number], isnull([Year letter],'') as [Year letter], isnull([Policy from],'') as [Policy from], isnull([Policy to],'') as [Policy to]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR]  
+GROUP BY [Policy number], [Firm order date], [Year letter], [Policy from], [Policy to]
+) b ON b.[Policy number] = a.[Policy number] 
+							AND isnull(b.[Year letter],'') = a.[Year letter] 
+							and isnull(a.[Policy from],'') = b.[Policy from]
+							and isnull(a.[Policy to],'') = b.[Policy to]
+							AND b.pseudoID <> a.%%lockres%%
 
 
 PRINT ''; PRINT getdate(); PRINT 'Exiting Stored Procedure [sp_DM_AU_CLM_IMS_CLEANUP_BO_DATA]' 

@@ -1,6 +1,6 @@
 USE [DM_IMS_AU_CLAIMS]
 GO
-/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_CREATE_BO_FT_CLAIMS]    Script Date: 22/02/2022 1:44:30 PM ******/
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_CREATE_BO_FT_CLAIMS]    Script Date: 7/04/2022 8:31:54 AM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -142,7 +142,7 @@ ps.[RiskWrite Riskid]						as [RiskWrite Policy Number],
 isnull(fc.[FT_POLICY_NUMBER],'')			as [WebRater Policy Number],
 bcapr.[Year Letter]							as [Year Letter],
 isnull(bcapr.[CLAIMANT],'')					as [Claimant],
-bcapr.[Contract]							as [Contract],
+coalesce(bcapr.[Contract], ps.[Binder])		as [Contract],
 'Payee'										as [Payee],
 bcapr.[STATUS]								as [Status],
 bcapr.[TYPE]								as [Type],

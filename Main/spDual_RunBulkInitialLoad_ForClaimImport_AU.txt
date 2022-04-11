@@ -1,6 +1,6 @@
 USE [IMS]
 GO
-/****** Object:  StoredProcedure [dbo].[spDual_RunBulkInitialLoad_ForClaimImport_AU]    Script Date: 23/02/2022 5:07:57 PM ******/
+/****** Object:  StoredProcedure [dbo].[spDual_RunBulkInitialLoad_ForClaimImport_AU]    Script Date: 7/04/2022 8:23:16 AM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -8,15 +8,98 @@ GO
 
 -- 21/02/2022 - Cloned from NZ version [spDual_RunBulkInitialLoad_ForClaimImport] by C Vlahos for Australia Policy Shell and Claims data migration to IMS
 
-ALTER PROCEDURE [dbo].[spDual_RunBulkInitialLoad_ForClaimImport_AU]
+ALTER PROCEDURE [dbo].[spDual_RunBulkInitialLoad_ForClaimImport_AU] 
+
+--Invoke this if we want to introduce the parameter to the job.  See below for other Invoke comments about Parameter
+--ALTER PROCEDURE [dbo].[spDual_RunBulkInitialLoad_ForClaimImport_AU] (@go VARCHAR(10) = 'NO')
 AS
 BEGIN
+
+PRINT ''; PRINT 'Entering Stored Procedure [spDual_RunBulkInitialLoad_ForClaimImport_AU]' 
+
+SET NOCOUNT OFF;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED; 
+	
+/*
+--Invoke this if we want to introduce the parameter to the job.  Also invokeFINISH_RUN at bottom of sproc below 
+
+Declare @ProcError      Int = 0
+
+    BEGIN TRY
+
+
+		IF not(isnull(@go,'') in ('START','CONTINUE'))
+		    Begin
+				PRINT ''
+				PRINT 'Invalid parameter: '+@go+'. Parameter must be either START or CONTINUE'
+				PRINT ''
+				PRINT 'START means you are beginning a fresh Policy Shell load to IMS , no Policy Shells have been loaded yet'
+				PRINT ''  
+				PRINT 'CONTINUE means you are carrying on from an already commenced Policy Shell load to IMS....'
+				PRINT 'where you have more to load after the fresh start (e.g. you have corrected some rejected policies and want to load them)'
+				PRINT ''
+				PRINT 'Please rerun this job with a parameter of START or CONTINUE'
+				PRINT ''
+				PRINT '*** JOB STOPPED...NO DATA HAS BEEN EXTRACTED and LOADED to IMS ***'
+				SET @ProcError = 99
+				GOTO FINISH_RUN
+			End
+
+*/
+
+PRINT 'Fist thing we do is update [Dual_ContractLineMapping_ForClaimImport_AU] table which is used by sproc [spDual_SetupPolicyInIMS_ForClaimImport_AU]'
+
+PRINT ''; PRINT 'Set LineGUID in [Dual_ContractLineMapping_ForClaimImport_AU] table based on mapped Class to LineName'
+
+update clc
+	set
+--SELECT clc.*,
+		LineGUID = ll.LineGUID,
+		LineID = ll.LineID
+FROM [IMS].[dbo].[Dual_ContractLineMapping_ForClaimImport_AU] clc
+inner join [IMS].[dbo].lstLines ll on clc.Class = ll.LineName
+
+
+PRINT ''; PRINT 'Set CompanyLineGUID in [Dual_ContractLineMapping_ForClaimImport_AU] table based on mapped CompanyLine Name'
+
+update clc
+	set
+--SELECT clc.*,
+		CompanyLineGUID = tcl.CompanyLineGUID,
+		CompanyLineID = tcl.CompanyLineID
+FROM [IMS].[dbo].[Dual_ContractLineMapping_ForClaimImport_AU] clc
+inner join (select CompanyLine, max([Added]) as Added from [IMS].[dbo].tblCompanyLines where StateID = 'AU' group by CompanyLine) tcllatest on clc.CompanyLine = tcllatest.CompanyLine
+inner join [IMS].[dbo].tblCompanyLines tcl on tcllatest.CompanyLine = tcl.CompanyLine and tcllatest.Added = tcl.Added and tcl.StateID = 'AU'
+
+
+PRINT ''; PRINT 'Set ProgramCodeGUID in [Dual_ContractLineMapping_ForClaimImport_AU] table based on mapped Program Code'
+
+update clc
+	set
+--SELECT clc.*,
+		ProgCode = tcpc.ProgCode,
+		ProgramCodeGUID = tcpc.ProgramCodeGuid,
+		ProgramID = tcpc.ProgramID
+FROM [IMS].[dbo].[Dual_ContractLineMapping_ForClaimImport_AU] clc
+inner join [IMS].[dbo].[tblCompanyProgramCodes] tcpc on clc.ProgCode = tcpc.ProgCode
+
+
+
+PRINT ''; PRINT 'Set Index on [Dual_SetupHistory_ForClaimImport_AU] table'
+
+
+DROP INDEX IF EXISTS ix_policynumbertoload on [dbo].[Dual_SetupHistory_ForClaimImport_AU]
+
+CREATE NONCLUSTERED INDEX ix_policynumbertoload on [dbo].[Dual_SetupHistory_ForClaimImport_AU] ([policynumbertoload])
+
+PRINT ''; PRINT 'Begin extract and load'
+
 
 	IF OBJECT_ID('tempdb..#PolsToCreate') IS NOT NULL BEGIN DROP TABLE #PolsToCreate END
 
 	SELECT		DISTINCT LTRIM(RTRIM([Policy Number])) as PolicyNumber
 	INTO		#PolsToCreate
-	FROM		Dual_FigTreeClaims_AU
+	FROM		Dual_FigTreeClaims
 	WHERE		LTRIM(RTRIM([Policy Number]))<>''
 				AND LTRIM(RTRIM([Policy Number])) NOT IN (SELECT PolicyNumberToLoad FROM [dbo].[Dual_SetupHistory_ForClaimImport_AU] WHERE [Success]=1)
 	ORDER BY LTRIM(RTRIM([Policy Number]))
@@ -32,7 +115,7 @@ BEGIN
 	DECLARE Cur Cursor FAST_FORWARD FORWARD_ONLY
 	FOR SELECT PolicyNumber FROM #PolsToCreate ORDER BY PolicyNumber
 
-	SELECT * FROM #PolsToCreate
+--	SELECT * FROM #PolsToCreate
 
 	OPEN Cur
 	FETCH Cur INTO @PolicyNumber
@@ -46,4 +129,22 @@ BEGIN
 
 	CLOSE Cur 
 	DEALLOCATE Cur
+
+/*
+--Invoke this if we want to introduce the parameter to the job - see above
+FINISH_RUN:     
+
+PRINT ''; PRINT getdate(); PRINT 'Exiting Stored Procedure [spDual_RunBulkInitialLoad_ForClaimImport_AU]' 
+
+    
+	END TRY
+
+	BEGIN CATCH
+		SET @ProcError = 99
+	END CATCH	    
+	        			   
+    RETURN @ProcError;
+
+*/
+
 END

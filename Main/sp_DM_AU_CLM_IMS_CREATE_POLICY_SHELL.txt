@@ -1,6 +1,6 @@
 ﻿USE [DM_IMS_AU_CLAIMS]
 GO
-/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_CREATE_POLICY_SHELL]    Script Date: 1/03/2022 9:26:20 AM ******/
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_CREATE_POLICY_SHELL]    Script Date: 7/04/2022 8:32:39 AM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -40,8 +40,8 @@ cast('BO Policy has a RiskWrite record' AS VARCHAR(255))  as [Policy Condition]
 into ##temp_BO_RW_Pols
 from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bd
 where 1=1
--- We don't want Policies starting with AU000 as these are already in IMS
-and not(LEFT(bd.[Policy number],5) = 'AU000')
+--and not(LEFT(bd.[Policy number],5) = 'AU000')  -- We may not want Policies starting with AU000 as these are already in IMS
+
 
 --select * from ##temp_BO_RW_Pols WHERE [BO Policy Number] = 'CY-52057318J2 - ER'
 --select * from ##temp_BO_RW_Pols WHERE [BO EVO] is NOT NULL
@@ -654,8 +654,8 @@ tbwp.[RiskWrite Riskid],
 tbwp.[RiskWrite RiskExtRef], 
 --bd.[RENOVACI] as [New/Renew],
 'R'															as [New/Renew],
-coalesce(bod.[Policy Holder], bd.[COMPANY_NA])				as [BO Insured],
-coalesce(clnt.[CLIENTNAME], bod.[Policy Holder], bd.[COMPANY_NA]) as [Insured Name],		
+coalesce(bodg.[Policy Holder], bd.[COMPANY_NA])				as [BO Insured],
+coalesce(clnt.[CLIENTNAME], bodg.[Policy Holder], bd.[COMPANY_NA]) as [Insured Name],		
 coalesce(rbc.[brokercompanyname], bodv.[broker name])		as [Broker Name], 
 
 --select distinct rbc.officeaddress5, rbc.invoiceaddress5,
@@ -695,7 +695,7 @@ coalesce(cast(isnull(figures.[Excess],0) as numeric(18,2)), bodv.[Excess])	as [E
 
 case when rsk.[risktype] like '%X%' then 'Excess' else 'Primary' end as [Primary / Excess / Coinsurance],
 
-bod.[CONTRACT]												as [Binder],
+bodv.[CONTRACT]												as [Binder],
 
 bprod.[INSURER1]											as [Insurer1Name],
 bprod.[INSURER2]											as [Insurer2Name],
@@ -704,9 +704,9 @@ bprod.[INSURER4]											as [Insurer4Name],
 
 'AUD'														as [Currency],
 
-isnull(bod.[SCHEME],'')										as [Scheme],
-isnull(bod.[Activity Code],'')								as [Activity Code],
-case when bod.[UMR] = '' then NULL else bod.[UMR] end 		as [UMR],
+isnull(bodg.[SCHEME],'')										as [Scheme],
+isnull(bodg.[Activity Code],'')								as [Activity Code],
+case when bodg.[UMR] = '' then NULL else bodg.[UMR] end 		as [UMR],
 bprod.YEARLETTER											as [Year Letter],
 bprod.YEARLETTER											as [Year Letter New],
 
@@ -717,15 +717,15 @@ usr.userid													as [Underwriter],
 rsk.id_usrr_underwriter,
 rbr.email													as [Broker Email],
 figures.id_risk												as id_risk,
-bod.GST														as [GSTPercent],
-bod.[PRODUCT]												as [Class],
+bodg.GST														as [GSTPercent],
+coalesce(bodg.[PRODUCT], rprod.[CLASSOFBUSINESS])			as [Class],
 bd.REF__PAY_T												as [RefPayToDual],
 rprod.[Productname]											as [RiskWrite Product],
 tbwp.[Policy Condition]
 
 
 from ##temp_Merged_BO_RW_Pols tbwp
-left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bod on tbwp.[BO Policy Number] = bod.[Policy number]
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR_G_OPTION] bodg on tbwp.[BO Policy Number] = bodg.[Policy number]
 left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_BO_POLICY_VAR] bodv on tbwp.[BO Policy Number] = bodv.[Policy number]
 left join [RiskWriteApac].[dbo].[risk] rsk on tbwp.[RiskWrite Riskid] = rsk.riskid
 left join [RiskWriteApac].[dbo].[brokercompany] rbc on rsk.id_brkc = rbc.id_brkc
@@ -733,7 +733,7 @@ left  join (select ID_BKRC, max(ID_BRKR) as ID_BRKR from [RiskWriteApac].[dbo].[
 left  join [RiskWriteApac].[dbo].[broker] rbr on rbrmax.ID_BRKR = rbr.ID_BRKR
 left join [RiskWriteApac].[dbo].[client] clnt on rsk.id_clnt = clnt.id_clnt
 left join [RiskWriteApac].[dbo].[product] rprod on rsk.productid = rprod.PRODUCTID
-left join (select [CONTRAID], max(BINDERENDD) as maxbinddate from [RiskWriteApac].[dbo].[BO_PRODUCT] group by [CONTRAID]) bprodmax on bod.[Year letter]+bod.[CONTRACT] = bprodmax.[CONTRAID] 
+left join (select [CONTRAID], max(BINDERENDD) as maxbinddate from [RiskWriteApac].[dbo].[BO_PRODUCT] group by [CONTRAID]) bprodmax on bodg.[Year letter]+bodg.[CONTRACT] = bprodmax.[CONTRAID] 
 left join [RiskWriteApac].[dbo].[BO_PRODUCT] bprod on bprodmax.CONTRAID = bprod.CONTRAID and bprodmax.maxbinddate = bprod.BINDERENDD
 left join [RiskWriteApac].[dbo].[users] usr on rsk.id_usrr_underwriter = usr.id_usrr 
 left join  [RiskWriteApac].[dbo].[BO_DUALDATA] bd on tbwp.[BO Policy Number] = bd.[POLICY__]
@@ -765,13 +765,46 @@ where 1=1
 and tbwp.[BO Policy Number] not in (select [Policy Number] from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_XREF_EXCLUDE_POLICY])
 
 
-PRINT ''; PRINT 'Complete some fields on Work File for RW Policies'
+PRINT ''; PRINT 'Complete Binder field on Work File for RW Policies'
 
 update wf
 	set
 --select wf.[RiskId], wf.*,  r.riskid, q.id_quot, qsm.ID_BUSG, qsm.*, bg.*,
-	[Line of Business] = bg.classofbusiness,
 	[Binder] = bg.[description]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_FILE] wf
+inner join [RiskWriteApac].[dbo].[risk] r on wf.[RiskId] = r.riskid
+inner join [RiskWriteApac].[dbo].[quotes] q on r.id_risk = q.id_risk
+inner join (select id_quot, max(ID_QTSN) as ID_QTSN from [RiskWriteApac].[dbo].[quotesection]  where ID_BUSG is NOT NULL group by id_quot) qs on q.id_quot = qs.ID_QUOT
+inner join [RiskWriteApac].[dbo].[quotesection] qsm on qs.ID_QTSN = qsm.ID_QTSN
+inner join [RiskWriteApac].[dbo].[businessgroup] bg on qsm.ID_BUSG = bg.id_busg
+where 1=1
+--and not(q.quotestatus in ('DECL','NTU','WIP'))
+and q.quotetype = 'QUOTE'
+and wf.[policy condition] in ('RiskWrite Policy does NOT have BO Policy record', 'BO Policy has a RiskWrite record')
+and isnull(wf.[Binder] ,'') = ''
+--and r.riskid = 'MLW38892516H1' -- 'PI-53739416I0'
+--order by wf.[RiskId]
+
+
+
+
+PRINT ''; PRINT 'Complete Line of Business and Class field on Work File for RW Policies'
+
+update wf
+	set
+--select wf.[RiskId], bg.classofbusiness, wf.[RiskWrite Product] , wf.[Line of Business], wf.[Line of Business],  qsm.SCHEMEPRODUCTSECTIONID, bg.classofbusiness, 'wf', wf.*,  r.riskid, q.id_quot, qsm.ID_BUSG, 'qsm', qsm.*, 'bg', bg.*,
+	[Line of Business] = case when wf.[RiskWrite Product] like '%Cluster Group Book%' then qsm.SCHEMEPRODUCTSECTIONID
+							  when wf.[Line of Business] in ('AH','FI','FOCUS','RI','Wholesale') then wf.[RiskWrite Product]
+							  when qsm.SCHEMEPRODUCTSECTIONID = 'COMBINED' then wf.[RiskWrite Product]
+							  when wf.[RiskWrite Product] = 'BizCover Bordereau' and wf.[Line of Business] = 'BizCover Bordereau' and wf.[Binder] like '%AH%' and wf.[Policy number] like 'BIZ% - AH' then 'Individual Personal Accident'
+							  else coalesce(qsm.SCHEMEPRODUCTSECTIONID, bg.classofbusiness) end,
+
+	[Class] = case when wf.[RiskWrite Product] like '%Cluster Group Book%' then qsm.SCHEMEPRODUCTSECTIONID
+							  when wf.[Class] in ('AH','FI','FOCUS','RI','Wholesale') then wf.[RiskWrite Product]
+							  when qsm.SCHEMEPRODUCTSECTIONID = 'COMBINED' then wf.[RiskWrite Product]
+							  when wf.[RiskWrite Product] = 'BizCover Bordereau' and wf.[Class] = 'BizCover Bordereau' and wf.[Binder] like '%AH%' and wf.[Policy number] like 'BIZ% - AH' then 'Individual Personal Accident'
+							  else coalesce(qsm.SCHEMEPRODUCTSECTIONID, bg.classofbusiness) end
+
 FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_FILE] wf
 inner join [RiskWriteApac].[dbo].[risk] r on wf.[RiskId] = r.riskid
 inner join [RiskWriteApac].[dbo].[quotes] q on r.id_risk = q.id_risk
@@ -782,8 +815,55 @@ where 1=1
 --and not(q.quotestatus in ('DECL','NTU','WIP'))
 and q.quotetype = 'QUOTE'
 and wf.[policy condition] in ('RiskWrite Policy does NOT have BO Policy record', 'BO Policy has a RiskWrite record')
---and r.riskid = 'MLW38892516H1' -- 'PI-53739416I0'
+--and isnull(wf.[Binder] ,'') = ''
+--and r.riskid = 'VR-15568514F0' --'CT-00035319K0'  -- 'PI-53739416I0'
 --order by wf.[RiskId]
+
+
+PRINT ''; PRINT 'Complete more Line of Business and Class field on Work File for RW Policies'
+
+update wf
+	set
+--select wf.[Policy Number], wf.[Binder], wf.[RiskWrite Product], wf.[Class], wf.[Line of Business] ,'wf', wf.*,  
+	[Line of Business] = case	when wf.[Line of Business] in ('AH','Accident & Health - WR') and wf.[RiskWrite Product] = 'Accident & Health - WR' and wf.Binder like '%AH%' and left(wf.riskid,2) = 'CT' then 'Corporate Travel'  
+								when wf.[Line of Business] in ('AH','FI','FOCUS','RI','Wholesale') then wf.[RiskWrite Product]
+							    when wf.[RiskWrite Product] = 'BizCover Bordereau' and wf.[Line of Business] = 'BizCover Bordereau' and wf.[Binder] like '%AH%' and wf.[Policy number] like 'BIZ% - AH' then 'Individual Personal Accident'
+							  	  else wf.[Line of Business] end,
+
+	[Class] = case 	when wf.[Class] in ('AH','Accident & Health - WR') and wf.[RiskWrite Product] = 'Accident & Health - WR' and wf.Binder like '%AH%' and left(wf.riskid,2) = 'CT' then 'Corporate Travel'  
+					when wf.[Class] in ('AH','FI','FOCUS','RI','Wholesale') then wf.[RiskWrite Product]
+					when wf.[RiskWrite Product] = 'BizCover Bordereau' and wf.[Class] = 'BizCover Bordereau' and wf.[Binder] like '%AH%' and wf.[Policy number] like 'BIZ% - AH' then 'Individual Personal Accident'
+							  	  else wf.[Class] end
+
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_FILE] wf
+where 1=1
+and wf.[policy condition] in ('RiskWrite Policy does NOT have BO Policy record', 'BO Policy has a RiskWrite record')
+--and wf.[Policy Number] = 'CTW25614115G0 - CT'  -- 'PI-53739416I0'
+--order by wf.[Policy Number]
+
+
+PRINT ''; PRINT 'Complete more Line of Business and Class field on Work File for non-RW Policies'
+
+update wf
+	set
+--select wf.[Policy Number], wf.[Binder], wf.[RiskWrite Product], wf.[Class], wf.[Line of Business] , 'wf', wf.*,  
+	[Line of Business] = case when wf.[Line of Business] = 'AH' then left(wf.[Policy Number],2)
+							  when wf.[Line of Business] = 'EXP' then 'Corporate Travel' 
+							  when wf.[Line of Business] in ('FOCUS','ITPL') then 'Professional Indemnity' 
+							  	  else wf.[Line of Business] end,
+
+	[Class] = case when wf.[Line of Business] = 'AH' then left(wf.[Policy Number],2)
+							  when wf.[Class] = 'EXP' then 'Corporate Travel' 
+							  when wf.[Class] in ('FOCUS','ITPL') then 'Professional Indemnity' 
+							  when wf.[Binder] = 'LLOYDS PI' and wf.[Line of Business] is not NULL and wf.[Class] is NULL then wf.[Line of Business]
+							  	  else wf.[Class] end
+
+FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_FILE] wf
+
+where 1=1
+and wf.[policy condition] in ('BO Policy does NOT have a RiskWrite record')
+--and wf.[Policy Number] = 'CT-00035319K0'  -- 'PI-53739416I0'
+--order by wf.[Policy Number]
 
 
 PRINT ''; PRINT 'Complete Line of Business field if still NULL'
@@ -791,7 +871,8 @@ PRINT ''; PRINT 'Complete Line of Business field if still NULL'
 update wf
 	set
 --select wf.[RiskId], wf.[Line of Business], wf.[Binder], r.riskid, xr.*, 
-	[Line of Business] = xr.[LineofBusiness]
+	[Line of Business] = xr.[LineofBusiness],
+	[Class] = xr.[LineofBusiness]
 FROM [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_FILE] wf
 inner join  [RiskWriteApac].[dbo].[risk] r on wf.[RiskId] = r.riskid
 inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_XREF_LINE_OF_BUSINESS] xr on r.productid = xr.[RW ProductID]
@@ -800,6 +881,23 @@ and wf.[policy condition] in ('RiskWrite Policy does NOT have BO Policy record',
 and isnull(wf.[Line of Business],'') = ''
 
 
+
+
+PRINT ''; PRINT 'Complete Year Letter and UMR'
+
+update wf
+	set 
+--select wf.[RiskId], r.[riskid], wf.[Year Letter], wf.[Year Letter New], wf.UMR,
+		[Year Letter] = r.binderreference,
+		[Year Letter New] = r.binderreference,
+		[UMR] = r.[umr]
+from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_FILE] wf
+inner join [RiskWriteApac].[dbo].[risk] r on wf.[RiskId] = r.riskid
+where 1=1
+and wf.[Policy Condition] = 'RiskWrite Policy does NOT have BO Policy record'
+
+
+ 
 
 /*
 select * from [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_WORK_FILE] where [Policy Number] in (
@@ -864,7 +962,7 @@ order by [Policy Number]
 --select * from ##temp_3 where  [Broker Email] is NULL
 
 
-PRINT ''; PRINT getdate(); PRINT 'Create table of Policy Shells for Claims to attach to in IMS'
+PRINT ''; PRINT getdate(); PRINT 'Create table of Policy Shells for IMS'
 
 IF OBJECT_ID('[DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL]', 'U') IS NOT NULL
 		DROP TABLE [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_POLICY_SHELL]

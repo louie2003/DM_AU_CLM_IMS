@@ -1,6 +1,6 @@
-USE [DM_IMS_AU_CLAIMS]
+﻿USE [DM_IMS_AU_CLAIMS]
 GO
-/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_Load_importAUPolicyDetails]    Script Date: 2/03/2022 4:13:10 PM ******/
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_Load_importAUPolicyDetails]    Script Date: 7/04/2022 8:43:06 AM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -30,7 +30,7 @@ select
 			else coalesce(ps.[firstpart_InsuredName], g.[Policy Holder], 'Unknown') end
 																as [InsuredName]
 
-,g.[Year Letter]
+,coalesce(g.[Year Letter], ps.[Year Letter])					as [Year Letter]
 ,g.[Policy number1]												as [PartialPolicyNumber]
 ,g.[Suffix]
 --,g.[Policy Number]
@@ -45,7 +45,7 @@ select
 ,g.[Order]														as [OrderNumber]
 ,coalesce(ps.[Excess], g.[Excess])								as [ExcessLimit]
 ,coalesce(ps.[Currency], g.[Currency],'AUD')					as [Currency]
-,coalesce(ps.[Binder], g.[Contract])							as [Contract]
+,coalesce(ps.[Binder], v.[Contract])							as [Contract]
 ,isnull(g.[Assets / Turnover],0)								as [AssetsTurnover]
 ,coalesce(ps.[Broker Key], g.[Client key],'DMIG')				as [BrokerKey]
 ,coalesce(ps.[Broker Name], g.[broker name], v.[Broker Name], 'Default Broker for Migration') as [BrokerName]
@@ -68,19 +68,22 @@ select
 ,v.[AmountDuetoProcessingBroker]*cast(g.[Insurer3Share] as float) as [NetDualBro3]
 
 ,v.[Wording]
-,case when g.[Status] = 'Dead' then 'Expired' 
+,case when g.[Status] in ('Dead','Quote') then 'Expired' 
 	  when g.[Policy to] < DATEADD(m, -3, getdate()) and g.[Status] = 'Current' then 'Expired' 
 		else g.[Status] end as [Status]
 
-,g.[Country Policy]					as [CountryPolicy]
-,g.[Reniew / New]					as [PolicyType]
-,g.[Type of policy]					as [TypeOfPolicy]
+,coalesce(g.[Country Policy],'Australia') as [CountryPolicy]
+
+,case when isnull(g.[Reniew / New],'R') in ('R',' R', 'Ren', 'A') then 'R' else 'N' end	as [PolicyType]
+
+,case when isnull(g.[Type of policy],'Original Premium') in ('Original','Original Premium') then 'Original Premium' else isnull(g.[Type of policy],'Original Premium') end as [TypeOfPolicy]
+
 ,g.[Insurer1]						as [Insurer1Name]
 ,g.[Insurer2]						as [Insurer2Name]
 ,g.[Insurer3]						as [Insurer3Name]
 ,g.[Insurer1Share]
 ,cast(g.[Insurer2share] as float)	as [Insurer2share]
-,cast(g.[Insurer3Share]as float)	as [Insurer3Share]
+,cast(g.[Insurer3Share] as float)	as [Insurer3Share]
 ,g.[Income tax 3%]					as [IncomeTax3Percent]
 ,ps.[GSTPercent]
 ,isnull(g.[Office],'Unknown')		as [Office]
@@ -92,7 +95,7 @@ select
 ,convert(varchar(10),convert(date,g.[Endorse from],103),120) as [Endorse from]
 
 ,v.[Retro Date]						as [Retro Date]
-,ps.[Class]
+,coalesce(ps.[Class], ps.[Line of Business], g.[Facility risk code], v.[Facility risk code], 'Unknown') as [Class]
 ,coalesce(g.[Facility risk code], v.[Facility risk code], 'Unknown') as [FacilityRiskCode]
 ,coalesce(g.[Scheme], v.scheme, 'Unknown') as [Scheme]
 ,isnull(g.[Currency],'AUD')			as [Currency]
@@ -102,10 +105,10 @@ select
 	  when g.[Number of Insureds] IS NULL then 1 	
 	  else g.[Number of Insureds] end as [NumberOfInsureds]
 
-,g.[Year Letter]					as [Year Letter New]
+,coalesce(g.[Year Letter], ps.[Year Letter]) as [Year Letter New]
 ,g.[MasterPolicyFlag]
 ,0.00								as [IncomeTaxInPercentage]
-,g.[Product]
+,coalesce(ps.[Class], ps.[Line of Business], g.[Product]) as [Product]
 ,isnull(ps.[Broker Email],'dualenquiries@dualaustralia.com.au') as [EmailAddress]
 ,NULL								as [WithholdingTaxPremium]
 ,NULL								as [WithholdingTaxAdmin]
@@ -120,13 +123,13 @@ select
 ,g.[GST]										as [GSTOnPremium]
 ,g.[CGcommissionLocked]
 ,g.[Firm order date]				as [Month]
-,g.[UMR]
+,coalesce(ps.[UMR],g.[UMR])			as [UMR]
 ,NULL								as [FSL]
 ,g.[VAR]							as [VarCalculation]
 ,cast(g.[Ins1_Cede_%] as float)		as [CedeIns1]
 ,cast(g.[Ins2_Cede_%] as float)		as [CedeIns2]
 ,cast(g.[Ins3_Cede_%] as float)		as [CedeIns3]
-,g.[PRODUCT]						as [Codigo]
+,coalesce(ps.[Class], ps.[Line of Business], g.[Product]) as [Codigo]
 ,0									as [DUILPercentage]
 ,0									as [DUILCommission]
 ,0									as [CGCommPercentage]
@@ -207,7 +210,6 @@ where 1=1
 --order by ps.[Policynumber]
 
 
- 
 PRINT ''; PRINT getdate(); PRINT 'Delete duplicate Riskwrite Riskid rows from [importAUPolicyDetails] table'
 
 delete from a
@@ -218,6 +220,189 @@ inner join
 FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging]  
 GROUP BY [PolicyNumber]
 ) b ON b.[PolicyNumber] = a.[PolicyNumber] AND b.pseudoID <> a.%%lockres%%
+
+
+PRINT ''; PRINT 'Complete fields for RiskWrite Policies that do NOT have a BO Policy record'
+
+
+PRINT ''; PRINT 'Status'
+
+update pds
+	set
+--select top 1000 pds.[RiskWrite RiskId], r.riskid, r.riskstatus, r.coverend,
+		Status = case when r.riskstatus in ('FINAL','CANCL') then 'Expired' 
+					  when r.[coverend] < DATEADD(m, -3, getdate()) and r.riskstatus in ('APSL','ACCP','ACPS') then 'Expired' 
+					  else 'Current' end 
+--select distinct r.riskstatus
+FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging] pds
+inner join [RiskWriteApac].[dbo].[risk] r on pds.[RiskWrite RiskId] = r.riskid
+where 1=1
+and pds.[policy condition] in ('RiskWrite Policy does NOT have BO Policy record')
+
+PRINT ''; PRINT 'Underwriter'
+
+update pds
+	set
+--select top 1000 pds.[RiskWrite RiskId], r.riskid, pds.UW, r.id_usrr_underwriter, u.*,
+		UW = u.userid
+--select distinct u.userid
+FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging] pds
+inner join [RiskWriteApac].[dbo].[risk] r on pds.[RiskWrite RiskId] = r.riskid
+inner join [RiskWriteApac].[dbo].[users] u on r.id_usrr_underwriter = u.id_usrr
+where 1=1
+and pds.[policy condition] in ('RiskWrite Policy does NOT have BO Policy record')
+
+PRINT ''; PRINT 'Cluster and Office'
+
+update pds
+	set
+--select pds.[RiskWrite RiskId], r.riskid, pds.ClusterGroup, 
+		ClusterGroup = case when isnull(pds.ClusterGroup,'Unknown') = 'Unknown' then bc.numericbrokercode else pds.ClusterGroup end,
+		Office = case when isnull(pds.Office,'Unknown') in ('Unknown','-','--','1') and isnull(bc.officeaddress4,'') <> '' then bc.officeaddress4 
+					  when isnull(pds.Office,'Unknown') in ('Unknown','-','--','1')  and isnull(bc.officeaddress4,'') = '' then bc.officeaddress5 
+						else pds.Office end
+--select distinct u.userid
+FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging] pds
+inner join [RiskWriteApac].[dbo].[risk] r on pds.[RiskWrite RiskId] = r.riskid
+inner join [RiskWriteApac].[dbo].[brokercompany] bc on r.id_brkc = bc.id_brkc
+where 1=1
+--and pds.[policy condition] in ('RiskWrite Policy does NOT have BO Policy record')
+
+
+
+PRINT ''; PRINT 'Carrier Insurer 1'
+
+update pds
+	set
+--select top 1000 pds.[RiskWrite RiskId], r.riskid, q.id_quot, qsm.ID_BUSG, c.NAME , bgs.sharepercent, bgs.sequence, bgs.IsDeleted, c.*, bgs.id_carr, pds.*, qsm.*, bg.*,
+		Insurer1Name = c.CODE,
+		Insurer1Share = bgs.sharepercent
+			
+--select distinct bgs.sequence
+
+FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging] pds
+inner join [RiskWriteApac].[dbo].[risk] r on pds.[RiskWrite RiskId] = r.riskid
+inner join [RiskWriteApac].[dbo].[quotes] q on r.id_risk = q.id_risk
+inner join (select id_quot, min(ID_QTSN) as ID_QTSN from [RiskWriteApac].[dbo].[quotesection]  where ID_BUSG is NOT NULL group by id_quot) qs on q.id_quot = qs.ID_QUOT
+inner join [RiskWriteApac].[dbo].[quotesection] qsm on qs.ID_QTSN = qsm.ID_QTSN
+inner join [RiskWriteApac].[dbo].[businessgroup] bg on qsm.ID_BUSG = bg.id_busg
+inner  join [RiskWriteApac].[dbo].[businessgroupshare] bgs on bg.ID_BUSG = bgs.id_busg
+inner  join [RiskWriteApac].[dbo].[carrier] c on bgs.id_carr = c.ID_CARR 
+where 1=1
+--and not(q.quotestatus in ('DECL','NTU','WIP'))
+and q.quotetype = 'QUOTE'
+and ((r.riskid = 'CNT73773319K1' and c.NAME = 'Argo') or (r.riskid = 'RI-59113417I0' and c.NAME = 'Chaucer International Liability 1084') 
+		 or (bgs.sequence = 1))
+and pds.[policy condition] in ('RiskWrite Policy does NOT have BO Policy record')
+
+PRINT ''; PRINT 'Carrier Insurer 2'
+
+update pds
+	set
+--select top 1000 pds.[RiskWrite RiskId], r.riskid, q.id_quot, qsm.ID_BUSG, c.NAME , bgs.sharepercent, bgs.sequence, bgs.IsDeleted, c.*, bgs.id_carr, pds.*, qsm.*, bg.*,
+		Insurer2Name = c.CODE,
+		Insurer2share = bgs.sharepercent
+--select distinct bgs.sequence
+FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging] pds
+inner join [RiskWriteApac].[dbo].[risk] r on pds.[RiskWrite RiskId] = r.riskid
+inner join [RiskWriteApac].[dbo].[quotes] q on r.id_risk = q.id_risk
+inner join (select id_quot, min(ID_QTSN) as ID_QTSN from [RiskWriteApac].[dbo].[quotesection]  where ID_BUSG is NOT NULL group by id_quot) qs on q.id_quot = qs.ID_QUOT
+inner join [RiskWriteApac].[dbo].[quotesection] qsm on qs.ID_QTSN = qsm.ID_QTSN
+inner join [RiskWriteApac].[dbo].[businessgroup] bg on qsm.ID_BUSG = bg.id_busg
+inner  join [RiskWriteApac].[dbo].[businessgroupshare] bgs on bg.ID_BUSG = bgs.id_busg
+inner  join [RiskWriteApac].[dbo].[carrier] c on bgs.id_carr = c.ID_CARR 
+where 1=1
+--and not(q.quotestatus in ('DECL','NTU','WIP'))
+and q.quotetype = 'QUOTE'
+and ((r.riskid = 'RI-59113417I0' and c.NAME = 'MS Amlin AML2001') 
+		 or (bgs.sequence = 2))
+--and bgs.sequence is NULL
+and pds.[policy condition] in ('RiskWrite Policy does NOT have BO Policy record')
+
+PRINT ''; PRINT 'Carrier Insurer 3'
+
+update pds
+	set
+--select top 1000 pds.[RiskWrite RiskId], r.riskid, q.id_quot, qsm.ID_BUSG, c.NAME , bgs.sharepercent, bgs.sequence, bgs.IsDeleted, c.*, bgs.id_carr, pds.*, qsm.*, bg.*,
+		Insurer3Name = c.CODE,
+		Insurer3Share = bgs.sharepercent
+--select distinct bgs.sequence
+FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging] pds
+inner join [RiskWriteApac].[dbo].[risk] r on pds.[RiskWrite RiskId] = r.riskid
+inner join [RiskWriteApac].[dbo].[quotes] q on r.id_risk = q.id_risk
+inner join (select id_quot, min(ID_QTSN) as ID_QTSN from [RiskWriteApac].[dbo].[quotesection]  where ID_BUSG is NOT NULL group by id_quot) qs on q.id_quot = qs.ID_QUOT
+inner join [RiskWriteApac].[dbo].[quotesection] qsm on qs.ID_QTSN = qsm.ID_QTSN
+inner join [RiskWriteApac].[dbo].[businessgroup] bg on qsm.ID_BUSG = bg.id_busg
+inner  join [RiskWriteApac].[dbo].[businessgroupshare] bgs on bg.ID_BUSG = bgs.id_busg
+inner  join [RiskWriteApac].[dbo].[carrier] c on bgs.id_carr = c.ID_CARR 
+where 1=1
+--and not(q.quotestatus in ('DECL','NTU','WIP'))
+and q.quotetype = 'QUOTE'
+and bgs.sequence = 3
+--and bgs.sequence is NULL
+and pds.[policy condition] in ('RiskWrite Policy does NOT have BO Policy record')
+
+
+PRINT ''; PRINT 'Carrier Insurer 4'
+
+update pds
+	set
+--select top 1000 pds.[RiskWrite RiskId], r.riskid, q.id_quot, qsm.ID_BUSG, c.NAME , bgs.sharepercent, bgs.sequence, bgs.IsDeleted, c.*, bgs.id_carr, pds.*, qsm.*, bg.*,
+		Insurer4Name = c.CODE,
+		Insurer4share = bgs.sharepercent
+--select distinct bgs.sequence
+FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging] pds
+inner join [RiskWriteApac].[dbo].[risk] r on pds.[RiskWrite RiskId] = r.riskid
+inner join [RiskWriteApac].[dbo].[quotes] q on r.id_risk = q.id_risk
+inner join (select id_quot, min(ID_QTSN) as ID_QTSN from [RiskWriteApac].[dbo].[quotesection]  where ID_BUSG is NOT NULL group by id_quot) qs on q.id_quot = qs.ID_QUOT
+inner join [RiskWriteApac].[dbo].[quotesection] qsm on qs.ID_QTSN = qsm.ID_QTSN
+inner join [RiskWriteApac].[dbo].[businessgroup] bg on qsm.ID_BUSG = bg.id_busg
+inner  join [RiskWriteApac].[dbo].[businessgroupshare] bgs on bg.ID_BUSG = bgs.id_busg
+inner  join [RiskWriteApac].[dbo].[carrier] c on bgs.id_carr = c.ID_CARR 
+where 1=1
+--and not(q.quotestatus in ('DECL','NTU','WIP'))
+and q.quotetype = 'QUOTE'
+and bgs.sequence = 4
+--and bgs.sequence is NULL
+and pds.[policy condition] in ('RiskWrite Policy does NOT have BO Policy record')
+
+
+PRINT ''; PRINT 'Delete test and rubbish Policy records'
+
+delete
+--select *
+FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging]
+where 1=1
+and BrokerKey in ('TESTBR4','TESTB','TEST WEBRATER')
+
+
+PRINT ''; PRINT 'Update Source CLASS to match a distinct IMS LineNAme value - Note: the original Source Class is still in table DM_AU_CLM_IMS_POLICY_SHELL'
+
+update pd
+	set
+--select distinct pd.Class, xcl.*,
+		Class = xcl.[IMS_LineName]
+FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging] pd
+left join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_XREF_CLASS_TO_IMS_LINENAME] xcl on pd.Class = xcl.Class
+where 1=1
+--and xcl.Class is NULL
+--and xcl.[claim Count] = 0
+
+
+PRINT ''; PRINT 'Update Broker details for specific Policies which do not have a Broker in the Back Office policy record'
+
+update pd
+	set
+--select pd.PolicyNumber, pd.BrokerKey, pd.BrokerName, pd.BrokerState, pd.BrokerStateName,
+		BrokerKey = xpr.BrokerKey, 
+		BrokerName = xpr.BrokerName, 
+		BrokerState = xpr.BrokerState, 
+		BrokerStateName = xpr.BrokerStateName		
+
+FROM [DM_IMS_AU_CLAIMS].[dbo].[Dual_PolicyDetails_Staging] pd
+inner join [DM_IMS_AU_CLAIMS].[dbo].[DM_AU_CLM_IMS_XREF_BO_PolNo_to_RW_Keys] xpr on pd.PolicyNumber = xpr.[BO Policy Number]
+where 1=1
+and xpr.BrokerKey is NOT NULL
 
 
 
@@ -238,7 +423,7 @@ set @sql_del = 'DELETE from ' + @ServerName + '.'+ @DBName +'.[dbo].[importAUPol
 exec (@sql_del)
 
 
-PRINT ''; PRINT getdate(); PRINT 'Refresh data in from [Dual_Reporting] [importAUPolicyDetails] table'
+PRINT ''; PRINT getdate(); PRINT 'Refresh data in [Dual_Reporting] [importAUPolicyDetails] table'
 
 
 declare @sql_insert varchar(max)

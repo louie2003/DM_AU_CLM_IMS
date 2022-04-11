@@ -1,6 +1,6 @@
 USE [DM_IMS_AU_CLAIMS]
 GO
-/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_GET_FIGTREE_CLAIM_NOTES]    Script Date: 22/02/2022 1:48:10 PM ******/
+/****** Object:  StoredProcedure [dbo].[sp_DM_AU_CLM_IMS_GET_FIGTREE_CLAIM_NOTES]    Script Date: 7/04/2022 8:34:23 AM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -87,11 +87,11 @@ update [DM_IMS_AU_CLAIMS].[dbo].[Dual_FigTreeClaim_Notes]
 	set [DESCRIPTION] = replace(Replace(Replace([DESCRIPTION], Char(9), ' '), Char(10), ' '), Char(13), ' ')
 
 
-PRINT ''; PRINT getdate(); PRINT 'Delete data from [IMS] [Dual_FigTreeClaim_Notes_AU] table'
+PRINT ''; PRINT getdate(); PRINT 'Delete data from [IMS] [Dual_FigTreeClaim_notes] table'
 
 declare @sql_del varchar(max)
 
-set @sql_del = 'DELETE from ' + @ServerName + '.'+ @DBName +'.[dbo].[Dual_FigTreeClaim_Notes_AU]'
+set @sql_del = 'DELETE from ' + @ServerName + '.'+ @DBName +'.[dbo].[Dual_FigTreeClaim_Notes]'
 
 exec (@sql_del)
 
@@ -102,7 +102,7 @@ PRINT ''; PRINT getdate(); PRINT 'Refresh data in [IMS] [Dual_FigTreeClaim_Notes
 declare @sql_insert varchar(max)
 
 set @sql_insert = '
-INSERT INTO ' + @ServerName + '.'+ @DBName +'.[dbo].[Dual_FigTreeClaim_Notes_AU]
+INSERT INTO ' + @ServerName + '.'+ @DBName +'.[dbo].[Dual_FigTreeClaim_Notes]
 select *
 from [DM_IMS_AU_CLAIMS].[dbo].[Dual_FigTreeClaim_Notes]'
 

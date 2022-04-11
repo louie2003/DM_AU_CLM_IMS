@@ -1,6 +1,6 @@
-USE [IMS]
+﻿USE [IMS]
 GO
-/****** Object:  StoredProcedure [dbo].[spDual_SetupPolicyInIMS_ForClaimImport_AU]    Script Date: 23/02/2022 6:12:47 PM ******/
+/****** Object:  StoredProcedure [dbo].[spDual_SetupPolicyInIMS_ForClaimImport_AU]    Script Date: 7/04/2022 8:25:21 AM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -8,12 +8,13 @@ GO
 
 /**
 
--- 21/02/2022 - Cloned from NZ version [spDual_SetupPolicyInIMS_ForClaimImport] by C Vlahos for Australia Policy Shell and Claims data migration to IMS
+-- 21/02/2022 - Cloned from NZ version [spDual_SetupPolicyInIMS_ForClaimImport_AU] by C Vlahos for Australia Policy Shell and Claims data migration to IMS
+-- Changes made by C Vlahos for Australia are marked with tag of AU CV
 
 Notes: (2021-11-08 Lee)
-	Notes on the Logic for how this Proc works and the expected Datafill in the Dual_ContractLineMapping_ForClaimImport table.
+	Notes on the Logic for how this Proc works and the expected Datafill in the Dual_ContractLineMapping_ForClaimImport_AU table.
 	The Import Details (from Dual_Reporting.dbo.importAUPolicyDetails) hold the "Contract" Value.
-	This "Contract" value is then used to pull info from the mapping table (IMS.dbo.Dual_ContractLineMapping_ForClaimImport).
+	This "Contract" value is then used to pull info from the mapping table (IMS.dbo.Dual_ContractLineMapping_ForClaimImport_AU).
 	If the table value "IsNZPackage" is set, the hard-coded Default package values (CompanyLoc/CompanyLine/Line) are used.
 	So, this flag really means "UseDefaults".  Based on discussions with Steve, it's really better to use the values 
 	from the mapping table.  So we set all the new package contacts added in Nov 2021 (the <<Contact>> 2 values) to NOT 
@@ -22,7 +23,7 @@ Notes: (2021-11-08 Lee)
 Updates to mapping for added package Contacts: Forcing all to have IsNZPackage=FALSE (i.e. UseDefaults=FALSE), 
     and all set to Bowood Package values for NZ.
 begin transaction updmap; rollback transaction updmap; commit transaction updmap;
---xxUPDATE map SET IsNZPackage = 0, LineGuid='45874F25-BBEC-4EFE-96A6-D94E24790834'/*NZ Package*/, CompanyLineGuid='27F4E495-F28D-4585-9ACE-A11819A69299'/*Bowood-NZ Package-NZ*/ FROM Dual_ContractLineMapping_ForClaimImport map WHERE map.[Contract] LIKE '% 2' AND map.CompanyLineGuid<>'27F4E495-F28D-4585-9ACE-A11819A69299';
+--xxUPDATE map SET IsNZPackage = 0, LineGuid='45874F25-BBEC-4EFE-96A6-D94E24790834'/*NZ Package*/, CompanyLineGuid='27F4E495-F28D-4585-9ACE-A11819A69299'/*Bowood-NZ Package-NZ*/ FROM Dual_ContractLineMapping_ForClaimImport_AU map WHERE map.[Contract] LIKE '% 2' AND map.CompanyLineGuid<>'27F4E495-F28D-4585-9ACE-A11819A69299';
 
 **Manual runs - 11/8/2021:
 SELECT DISTINCT BrokerKey, BrokerName FROM Dual_Reporting.dbo.importAUPolicyDetails WHERE BrokerKey IN ('BIZN', 'AONW', 'AONR', 'BIZN'); 
@@ -32,10 +33,10 @@ SELECT ProducerLocationID, LocationCode, [Name], [State], * FROM IMS.dbo.tblProd
 SELECT [Contract], BrokerKey, * FROM Dual_Reporting.dbo.importAUPolicyDetails 
   WHERE PolicyNumber IN ('NI/24300/000/21/M', 'ITB/01346/000/21/M', 'NI/23958/000/21/M', 'PB/00825/000/21/M'); 
 
-EXEC IMS.dbo.spDual_SetupPolicyInIMS_ForClaimImport @PolicyNumberToLoad = 'NI/24300/000/21/M:Wealthpoint Limited'; 
-EXEC IMS.dbo.spDual_SetupPolicyInIMS_ForClaimImport @PolicyNumberToLoad = 'ITB/01346/000/21/M:Tes Limited'; 
-EXEC IMS.dbo.spDual_SetupPolicyInIMS_ForClaimImport @PolicyNumberToLoad = 'NI/23958/000/21/M:CEAS Inc'; 
-EXEC IMS.dbo.spDual_SetupPolicyInIMS_ForClaimImport @PolicyNumberToLoad = 'PB/00825/000/21/M:Stuart Mayes'; 
+EXEC IMS.dbo.spDual_SetupPolicyInIMS_ForClaimImport_AU @PolicyNumberToLoad = 'NI/24300/000/21/M:Wealthpoint Limited'; 
+EXEC IMS.dbo.spDual_SetupPolicyInIMS_ForClaimImport_AU @PolicyNumberToLoad = 'ITB/01346/000/21/M:Tes Limited'; 
+EXEC IMS.dbo.spDual_SetupPolicyInIMS_ForClaimImport_AU @PolicyNumberToLoad = 'NI/23958/000/21/M:CEAS Inc'; 
+EXEC IMS.dbo.spDual_SetupPolicyInIMS_ForClaimImport_AU @PolicyNumberToLoad = 'PB/00825/000/21/M:Stuart Mayes'; 
 **/
 ALTER PROCEDURE [dbo].[spDual_SetupPolicyInIMS_ForClaimImport_AU]
 	@PolicyNumberToLoad varchar(150)
@@ -65,11 +66,15 @@ BEGIN
 	--SET @CompanyLocationGUID = '2BEE118E-F2C5-4B6E-9454-13A9E188EC0C'	--CompanyLocationName: Lloyds of London
 	SET @CompanyLocationGUID = 'AC171436-3855-4FCB-B530-F9A611791202'	--CompanyLocationName: Lloyds of London - Bowood
 	DECLARE @LineGUID uniqueidentifier
-	SET @LineGUID = '45874F25-BBEC-4EFE-96A6-D94E24790834'				--LineName: NZ Package
+--	SET @LineGUID = '45874F25-BBEC-4EFE-96A6-D94E24790834'				--LineName: NZ Package
+	SET @LineGUID = '54209CF4-87E8-451F-B265-6F3D9BEB1EB4'				--LineName: Auto - - AU CV
+
 	DECLARE @CompanyLineGUID uniqueidentifier
 	--(2021-11-08 Lee) Updated to use Pkg info that went into effect Feb 2021 per Joe.
 	--SET @CompanyLineGUID='01159FFD-7E53-4BCD-96F1-95D596136D34'		--CompanyLine: Lloyds of London via Guy Carpenter - NZ Package - NZ
-	SET @CompanyLineGUID='27F4E495-F28D-4585-9ACE-A11819A69299'			--CompanyLine: Lloyds of London - Bowood via Bowood - NZ Package - NZ
+
+--	SET @CompanyLineGUID='27F4E495-F28D-4585-9ACE-A11819A69299'			--CompanyLine: Lloyds of London - Bowood via Bowood - NZ Package - NZ
+	SET @CompanyLineGUID= '3C0CA757-B919-451F-B8C6-9AB807015D7A'			-- CompanyLine: Lloyds of London - Bowood via Bowood - Professional Indemnity - AU
 
 	SET @PolicyNumberToLoad=LTRIM(RTRIM(@PolicyNumberToLoad))
 	
@@ -116,7 +121,8 @@ BEGIN
 			--Only keep history of the last run.
 			DELETE FROM Dual_SetupHistory_ForClaimImport_AU WHERE PolicyNumberToLoad=@PolicyNumberToLoad
 			DELETE FROM Dual_PolicyData_ForClaimImport_AU WHERE PolicyNumber=@PolicyNumberToLoad
-			INSERT INTO Dual_PolicyData_ForClaimImport_AU (InsuredName, PolicyNumber, EffectiveDate, ExpirationDate, Limit, ExcessLimit, Currency, Contract, BrokerKey, BrokerName, BrokerPct, [Brok  State], Premium, PolicyType, BasePolicyNumber, OrigBindYearlyPolicyNumber)
+			INSERT INTO Dual_PolicyData_ForClaimImport_AU (InsuredName, PolicyNumber, EffectiveDate, ExpirationDate, Limit, ExcessLimit, Currency, Contract, BrokerKey, BrokerName, BrokerPct, [Brok  State], Premium, PolicyType, BasePolicyNumber, OrigBindYearlyPolicyNumber, 
+				[OrigEffDate], [ActivityCode], [OrigPolicyType], [Class]) -- AU CV
 			SELECT		InsuredName,
 						PolicyNumber,
 						EffectiveDate,
@@ -131,8 +137,13 @@ BEGIN
 						BrokerState,
 						Premium,
 						PolicyType,
-						dbo.fnDual_GetFigTreeBasePolicyNumber(@PolicyNumberToLoad),
-						dbo.fnDual_GetFigTreeOrigBindYearlyPolicyNumber(@PolicyNumberToLoad)
+						case when PolicyNumber like '%/%' and len(PolicyNumber) in (16,17,18) then dbo.fnDual_GetFigTreeBasePolicyNumber_AU(@PolicyNumberToLoad) else PolicyNumber end,				-- AU CV
+						case when PolicyNumber like '%/%' and len(PolicyNumber) in (16,17,18) then dbo.fnDual_GetFigTreeOrigBindYearlyPolicyNumber_AU(@PolicyNumberToLoad) else PolicyNumber end,	-- AU CV
+						EffectiveDate,																																								-- AU CV
+						ActivityCode,																																								-- AU CV
+						PolicyType,																																									-- AU CV		
+						Class																																										-- AU CV
+						
 			FROM		DUAL_Reporting.dbo.importAUPolicyDetails
 			WHERE		PolicyNumber=@PolicyNumberToLoad
 
@@ -151,7 +162,7 @@ BEGIN
 					RAISERROR('Policy data not found.', 16, 1)
 				END
 
-			--CardName is longer set on summary table. It's in a side table.
+			--CardName is longer set on summary table. It's in a side table.   
 			DECLARE @preCardName nvarchar(400)
 			SET @preCardName=null
 			if @importCardName IS NOT NULL AND @importCardName <> ''
@@ -161,9 +172,16 @@ BEGIN
 			--SELECT @preCardName=LTRIM(RTRIM(CardName)) FROM DUAL_Reporting.dbo.importAUPolicySummary WHERE PolicyNumber=@PolicyNumberToLoad
 
 			UPDATE		Dual_PolicyData_ForClaimImport_AU 
-			SET			OrigEffDate=(SELECT EffectiveDate FROM DUAL_Reporting.dbo.importAUPolicyDetails WHERE PolicyNumber=dbo.fnDual_GetFigTreeOrigBindYearlyPolicyNumber(@PolicyNumberToLoad)),
+			SET			OrigEffDate=(SELECT EffectiveDate FROM DUAL_Reporting.dbo.importAUPolicyDetails WHERE PolicyNumber=case when @PolicyNumberToLoad like '%/%' and len(@PolicyNumberToLoad) in (16,17,18) then	--AU CV
+							dbo.fnDual_GetFigTreeOrigBindYearlyPolicyNumber_AU(@PolicyNumberToLoad)																										--AU CV
+							else @PolicyNumberToLoad end),																																				--AU CV
+
 						ActivityCode=(LTRIM(RTRIM((SELECT ActivityCode FROM DUAL_Reporting.dbo.importAUPolicyDetails WHERE PolicyNumber=@PolicyNumberToLoad)))),
-						OrigPolicyType=(LTRIM(RTRIM((SELECT PolicyType FROM DUAL_Reporting.dbo.importAUPolicyDetails WHERE PolicyNumber=dbo.fnDual_GetFigTreeOrigBindYearlyPolicyNumber(@PolicyNumberToLoad))))),
+
+						OrigPolicyType=(LTRIM(RTRIM((SELECT PolicyType FROM DUAL_Reporting.dbo.importAUPolicyDetails WHERE PolicyNumber=case when @PolicyNumberToLoad like '%/%' and len(@PolicyNumberToLoad) in (16,17,18) then 	--AU CV
+							dbo.fnDual_GetFigTreeOrigBindYearlyPolicyNumber_AU(@PolicyNumberToLoad)																													--AU CV
+							else @PolicyNumberToLoad end)))),																																						--AU CV
+
 						CardName=LTRIM(RTRIM(@preCardName))
 			WHERE		PolicyNumber=@PolicyNumberToLoad
 
@@ -352,6 +370,9 @@ BEGIN
 					--tblQuote---------------------------------------------------------------------------------------------------------------------------------------
 					DECLARE @contract varchar(250)
 					SELECT @contract=[Contract] FROM Dual_PolicyData_ForClaimImport_AU WHERE Id=@DataId 
+					
+					DECLARE @Class varchar(250)
+					SELECT @Class=[Class] FROM Dual_PolicyData_ForClaimImport_AU WHERE Id=@DataId 
 
 					--(2021-11-08 Lee) Ranaming @IsNZPackage.  Really means UseDefaults. This is coupled with changes inteh 
 					--					Mapping table values to put Package values in the table vs relying on Default values in proc.
@@ -359,8 +380,15 @@ BEGIN
 					DECLARE @tmpLineGUID uniqueidentifier
 					DECLARE @IsNZPackage_ActuallyMeansUseDefaults bit
 					DECLARE @LineName varchar(150)
+					DECLARE @progId int 
 					
-					SELECT @tmpCompanyLineGUID=CompanyLineGUID, @tmpLineGUID=LineGUID, @IsNZPackage_ActuallyMeansUseDefaults=IsNZPackage, @LineName=LineName FROM Dual_ContractLineMapping_ForClaimImport WHERE [Contract]=@contract
+					SELECT 
+					@tmpCompanyLineGUID=CompanyLineGUID, 
+					@tmpLineGUID=LineGUID, 
+					@IsNZPackage_ActuallyMeansUseDefaults=IsNZPackage, 
+					@LineName=LineName,
+					@progId=ProgramID
+					FROM Dual_ContractLineMapping_ForClaimImport_AU WHERE [Contract]=@contract and Class=@Class
 
 					IF @IsNZPackage_ActuallyMeansUseDefaults=0
 						BEGIN
@@ -507,7 +535,7 @@ BEGIN
 							RAISERROR(@ThisError2, 16, 1)
 						END
 
-					INSERT INTO tblQuoteDetails(QuoteGuid, CompanyLineGuid, CompanyContactGuid, IntermediaryContactGuid, CompanyCommission, ProducerCommission, RaterID, TermsOfPayment)
+					INSERT INTO tblQuoteDetails(QuoteGuid, CompanyLineGuid, CompanyContactGuid, IntermediaryContactGuid, CompanyCommission, ProducerCommission, RaterID, TermsOfPayment, PolicyNumber)
 					SELECT		q.QuoteGuid,
 								--(2021-11-08 Lee) Fixing issue in script, should not be using @tmp here.
 								--@tmpCompanyLineGUID,
@@ -527,7 +555,12 @@ BEGIN
 								.40,
 								.25,
 								0,
-								30 as TermsOfPayment
+								30 as TermsOfPayment,
+
+-- Policy Number is tblQuoteDetails is varchar(20), but in tblQuotes it's varchar(50) - go figure!! , so I'm squahing it to 20 or less for tblQuoteDetails - don't know if this will cause IMS issues -- AU CV
+								case when len(@PolicyNumberToLoad) < 21 then @PolicyNumberToLoad
+										else ltrim(rtrim(REPLACE(replace(replace(TRIM(@PolicyNumberToLoad), ' ',''), 'IT/PI', 'ITPI'), 'PIExcess','PIExs'))) end
+
 					FROM		Dual_SetupHistory_ForClaimImport_AU  p
 					INNER JOIN	tblQuotes q ON q.QuoteID=p.QuoteID
 					WHERE		Id=@Id;
@@ -621,9 +654,10 @@ BEGIN
 					DECLARE @OrigEffDate datetime
 					SELECT @OrigEffDate=OrigEffDate FROM Dual_PolicyData_ForClaimImport_AU WHERE Id=@DataId
 
-					DECLARE @progId int 
-					SET @progId=dbo.fnDual_GetProgramID(@LineName, @OrigEffDate, @contract)
-
+--					DECLARE @progId int 
+--					SET @progId=dbo.fnDual_GetProgramID_AU(@LineName, @OrigEffDate, @contract)   -- AU CV - I have made this call redundant as the ProgramId is now in the 
+																								 -- AU CV - Dual_ContractLineMapping_ForClaimImport_AU table and has been retreived around line 380
+																								     			
 					if @progId IS NOT NULL
 						BEGIN
 							UPDATE tblQuoteDetails SET ProgramID=@progId WHERE QuoteGuid=@QuoteGuid
@@ -631,14 +665,16 @@ BEGIN
 					ELSE
 						BEGIN
 							UPDATE tblQuoteDetails SET ProgramID=NULL WHERE QuoteGuid=@QuoteGuid
-						END
 
+						END
+/*
 					IF @PolicyNumberToLoad = 'NE/00015/000/11/C'
 						UPDATE tblQuoteDetails SET ProgramID=26 WHERE QuoteGuid=@QuoteGuid
 					ELSE IF @PolicyNumberToLoad = 'NG/16629/000/17/I'
 						UPDATE tblQuoteDetails SET ProgramID=43 WHERE QuoteGuid=@QuoteGuid
 					ELSE IF @PolicyNumberToLoad IN ('NI/02542/000/12/D', 'NP/95041/000/13/Z')
 						UPDATE tblQuoteDetails SET ProgramID=44 WHERE QuoteGuid=@QuoteGuid
+*/
 
 					UPDATE tblQuotes SET NAICSCode = a.ActivityCode
 					FROM tblQuotes q INNER JOIN (
